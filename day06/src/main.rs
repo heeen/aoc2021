@@ -10,18 +10,21 @@ fn main() {
         .map(|s| s.parse::<u8>().unwrap())
         .collect();
     println!("input ages {:?}", ages);
-    for day in (0..80) {
-        let mut new_spawns = 0;
-        ages.iter_mut().for_each(|f| match (*f) {
-            0 => {
-                *f = 6;
-                new_spawns += 1
-            }
-            _ => *f -= 1,
-        });
-        for i in 0..new_spawns {
-            ages.push(8);
-        }
+
+
+    let mut age_bins = vec![0u64; 9];
+    for age in ages {
+        age_bins[age as usize] += 1;
     }
-    println!("day 80 ages {:?}", ages.len());
+    println!("age counts {:?}", age_bins);
+    for day in 0..257 {
+        let mut new_bins = vec![0u64; 9];
+        for i in 0..8 {
+            new_bins[i] = age_bins[i+1];
+        }
+        new_bins[6] += age_bins[0];
+        new_bins[8] = age_bins[0];
+        println!("day {} age counts {:?} new counts {:?} sum {}", day, age_bins, new_bins, age_bins.iter().fold(0, |a, c| a + c));
+        age_bins = new_bins;
+    }
 }
