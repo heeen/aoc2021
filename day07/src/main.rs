@@ -19,12 +19,10 @@ fn main() {
 //    println!("input positions {:?}", start_posiitons);
 
     let costFn = |position: i32| {
-        let mut cost = 0;
-        for crab in start_posiitons.iter() {
+        start_posiitons.iter().fold(0, |a, crab| {
             let dist = (position - crab).abs();
-            cost += (dist * (dist + 1)) / 2;
-        }
-        cost
+            a + (dist * (dist + 1)) / 2
+        })
     };
 
     let mut last_pos = min;
@@ -37,7 +35,7 @@ fn main() {
         if next_cost > last_cost {
             step = -step / 2;
         }
-        if (step == 0) {
+        if step == 0 {
             break;
         }
         last_pos = next_pos;
