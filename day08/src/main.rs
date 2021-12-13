@@ -35,12 +35,13 @@ impl PatternDef {
                 Some(2)
             }
         } else if ones == 6 {
-            if pattern & self.one_cf == self.one_cf {
+            let nine = self.one_cf | self.bd;
+            if pattern & nine == nine {
                 Some(9)
-            } else if pattern & !self.bd == !self.bd {
-                Some(0)
-            } else {
+            } else if pattern & self.bd == self.bd {
                 Some(6)
+            } else {
+                Some(0)
             }
         } else {
             None
@@ -49,7 +50,7 @@ impl PatternDef {
 }
 
 fn main() {
-    let contents = fs::read_to_string("day08/input_simple").expect("could not read input");
+    let contents = fs::read_to_string("day08/input").expect("could not read input");
 
     let mut counts = vec![0; 10];
 
@@ -79,12 +80,21 @@ fn main() {
             (patterns, values)
         })
         .collect();
-   
+
     let mut sum = 0u64;
     for line in data {
-        line.1.iter().for_each(|digit| counts[digit.unwrap() as usize] += 1);
-        let value = line.1.iter().fold(0u64, |a, digit| a * 10 + (digit.unwrap() as u64));
-        println!("patterns: {:?} values {:?} {}", line.0, line.1, value);
+        line.1
+            .iter()
+            .for_each(|digit| counts[digit.unwrap() as usize] += 1);
+        let value = line
+            .1
+            .iter()
+            .fold(0u64, |a, digit| a * 10 + (digit.unwrap() as u64));
+        print!("patterns:");
+        for (i, pattern) in line.0.iter().enumerate() {
+            print!("{}:{:08b} (#{}), ",i, pattern, pattern.count_ones());
+        }
+        println!(" values {:?} {}", line.1, value);
         sum += value;
     }
     println!(
