@@ -1,12 +1,17 @@
 use core::panic;
 use std::{collections::HashMap, fs};
 
+enum ParseResult {
+    Illegal(char),
+    Incomplete(Vec<char>)
+}
+
 trait Parser {
-    fn parse_braces(&self) -> Result<char, Vec<char>>;
+    fn parse_braces(&self) -> ParseResult;
 }
 
 impl Parser for str {
-    fn parse_braces(&self) -> Result<char, Vec<char>> {
+    fn parse_braces(&self) -> ParseResult {
         let mut stack: Vec<char> = Vec::new();
         println!("parsing: {:?}", self);
         for c in self.chars() {
@@ -25,14 +30,14 @@ impl Parser for str {
                         };
                         if c != expected {
                             println!("Expected {}, found {}", expected, c);
-                            return Ok(c);
+                            return ParseResult::Illegal(c);
                         }
                     }
                 }
             }
         }
         println!("remaining stack {:?}", stack);
-        Err(stack)
+        ParseResult::Incomplete(stack)
     }
 }
 
@@ -43,11 +48,11 @@ fn main() {
     let mut scores: HashMap<char, i32> = HashMap::new();
     for line in input {
         match line.parse_braces() {
-            Ok(illegal) => {
-                let e = scores.entry(illegal).or_default();
+            ParseResult::Illegal(ch) => {
+                let e = scores.entry(ch).or_default();
                 *e += 1;
             }
-            Err(stack) => {
+            ParseResult::Incomplete(stack) => {
                 let completion_score = stack.iter().rev().fold(0u64, |a, c| {
                     a * 5
                         + match c {
