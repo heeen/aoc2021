@@ -60,17 +60,30 @@ impl FlashPropagator for Vec<Vec<i32>> {
 
 fn main() {
     let contents = fs::read_to_string("day11/input").expect("could not read input");
-    let mut input: Vec<Vec<i32>> = contents
+    let input: Vec<Vec<i32>> = contents
         .lines()
         .map(|l| l.chars().map(|c| c as i32 - '0' as i32).collect())
         .collect();
 
-    input.dump();
     let mut counter = 0usize;
+    let mut workset = input.clone();
     for cycle in 0..100 {
         let mut stack = Vec::new();
-        input.age_phase(&mut stack);
-        counter += input.flash_phase(stack);
+        workset.age_phase(&mut stack);
+        counter += workset.flash_phase(stack);
     }
     println!("flashes {}", counter);
+
+    let mut workset = input;
+    let mut cycle = 0;
+    loop {
+        let mut stack = Vec::new();
+        workset.age_phase(&mut stack);
+        let count = workset.flash_phase(stack);
+        cycle += 1;
+        println!("stepw {} flashes {}", cycle, count);
+        if count == workset.len() * workset[0].len() {
+            break;
+        }
+    }
 }
