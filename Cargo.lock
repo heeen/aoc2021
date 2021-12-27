@@ -70,6 +70,58 @@ name = "day12"
 version = "0.1.0"
 
 [[package]]
+name = "day13"
+version = "0.1.0"
+
+[[package]]
+name = "day14"
+version = "0.1.0"
+
+[[package]]
+name = "day15"
+version = "0.1.0"
+
+[[package]]
+name = "day16"
+version = "0.1.0"
+
+[[package]]
+name = "day17"
+version = "0.1.0"
+
+[[package]]
+name = "day18"
+version = "0.1.0"
+
+[[package]]
+name = "day19"
+version = "0.1.0"
+
+[[package]]
+name = "day20"
+version = "0.1.0"
+
+[[package]]
+name = "day21"
+version = "0.1.0"
+
+[[package]]
+name = "day22"
+version = "0.1.0"
+
+[[package]]
+name = "day23"
+version = "0.1.0"
+
+[[package]]
+name = "day24"
+version = "0.1.0"
+
+[[package]]
+name = "day25"
+version = "0.1.0"
+
+[[package]]
 name = "either"
 version = "1.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

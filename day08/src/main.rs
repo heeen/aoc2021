@@ -2,7 +2,7 @@
 use itertools::Itertools;
 use std::fs;
 
-fn toBitSet(wires: &str) -> u8 {
+fn to_bit_set(wires: &str) -> u8 {
     wires
         .chars()
         .fold(0u8, |a, c| a | 1 << ((c as usize) - ('a' as usize)))
@@ -61,7 +61,7 @@ fn main() {
             let patterns: Vec<_> = patterns
                 .split_ascii_whitespace()
                 .sorted_by(|a, b| a.len().cmp(&b.len()))
-                .map(|wires| toBitSet(wires))
+                .map(|wires| to_bit_set(wires))
                 .collect();
 
             let def = PatternDef {
@@ -73,7 +73,7 @@ fn main() {
             let values: Vec<_> = values
                 .split_ascii_whitespace()
                 .map(|wires| {
-                    let pattern = toBitSet(wires);
+                    let pattern = to_bit_set(wires);
                     def.discriminate(pattern)
                 })
                 .collect();

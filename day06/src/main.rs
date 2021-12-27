@@ -2,7 +2,7 @@ use std::fs;
 
 fn main() {
     let contents = fs::read_to_string("day06/input").expect("could not read input");
-    let mut ages: Vec<_> = contents
+    let ages: Vec<_> = contents
         .lines()
         .next()
         .unwrap()

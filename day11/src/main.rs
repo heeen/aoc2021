@@ -67,7 +67,7 @@ fn main() {
 
     let mut counter = 0usize;
     let mut workset = input.clone();
-    for cycle in 0..100 {
+    for _cycle in 0..100 {
         let mut stack = Vec::new();
         workset.age_phase(&mut stack);
         counter += workset.flash_phase(stack);
