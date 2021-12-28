@@ -10,25 +10,37 @@ fn main() {
     println!("template: {}", template);
     println!("patterns: {:?}", patterns);
 
-    for step in 0..10 {
+    for step in 0..40 {
         let mut insertions = Vec::new();
         for (pattern, insertion) in &patterns {
-            insertions.extend(
-                template
-                    .match_indices(pattern)
-                    .map(|m| (m.0 + 1, insertion)),
-            );
+            let mut gpos = 0;
+            loop {
+                if let Some(pos) = &template[gpos..].find(pattern) {
+                    insertions.push((gpos + pos + 1, insertion));
+                    gpos += pos + 1;
+                } else {
+                    break;
+                }
+            }
         }
         insertions.sort_by(|a, b| a.0.cmp(&b.0));
-        println!("insertions {:?}", insertions);
+        //println!("insertions {:?}", insertions);
         let mut result = String::new();
         let mut start = 0usize;
         for insertion in insertions {
+            /*
+            println!(
+                "> {} + {} + {}",
+                result,
+                &template[start..insertion.0],
+                insertion.1
+            );
+            */
             result = result + &template[start..insertion.0] + insertion.1;
             start = insertion.0;
         }
         result = result + &template[start..];
-        println!("step {} result: {}", step, result);
+        //println!("step {} result: {}", step, result);
         template = result;
     }
 
