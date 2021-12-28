@@ -1,12 +1,51 @@
-use std::{collections::HashSet, fs};
+use std::{collections::HashMap, fs};
 fn main() {
     let contents = fs::read_to_string("day14/input_simple").expect("could not read input");
-    let lines = contents.lines();
-    let seed = lines.next().unwrap();
+    let mut lines = contents.lines();
+    let mut template = lines.next().unwrap().to_owned();
     lines.next();
-    let patterns = lines.map(|l| l.split_once('->').unwrap())
-    for line in lines {
+    let patterns = lines
+        .map(|l| l.split_once(" -> ").unwrap())
+        .collect::<Vec<_>>();
+    println!("template: {}", template);
+    println!("patterns: {:?}", patterns);
+
+    for step in 0..10 {
+        let mut insertions = Vec::new();
+        for (pattern, insertion) in &patterns {
+            insertions.extend(
+                template
+                    .match_indices(pattern)
+                    .map(|m| (m.0 + 1, insertion)),
+            );
+        }
+        insertions.sort_by(|a, b| a.0.cmp(&b.0));
+        println!("insertions {:?}", insertions);
+        let mut result = String::new();
+        let mut start = 0usize;
+        for insertion in insertions {
+            result = result + &template[start..insertion.0] + insertion.1;
+            start = insertion.0;
+        }
+        result = result + &template[start..];
+        println!("step {} result: {}", step, result);
+        template = result;
     }
-    println!("seed: {}", seed);
-    println!("patterns: {}", patterns);
+
+    let frequencies = template.chars().fold(HashMap::new(), |mut a, c| {
+        *a.entry(c).or_default() += 1;
+        a
+    });
+
+    let mut min = ('\0', usize::MAX);
+    let mut max = ('\0', usize::MIN);
+    for e in frequencies {
+        if e.1 > max.1 {
+            max = e;
+        }
+        if e.1 < min.1 {
+            min = e;
+        }
+    }
+    println!("min: {:?} max {:?} diff {}", min, max, max.1 - min.1);
 }
