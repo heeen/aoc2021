@@ -1,8 +1,42 @@
 use std::{collections::HashMap, fs};
+
+fn substitute<'a>(
+    input: &'a str,
+    patterns: &Vec<(&str, &str)>,
+    depth: usize,
+    cache: &'a mut HashMap<(String, usize), HashMap<char, usize>>,
+) -> HashMap<char, usize> {
+
+    if let Some(entry) = cache.get(&(input.to_string(), depth)) {
+        return entry.clone();
+    }
+
+    let mut result_counts = HashMap::new();
+    for (pattern, insertion) in patterns {
+        if input == *pattern {
+            let result = String::new() + &input[0..1] + *insertion + &input[1..];
+            *result_counts
+                .entry(insertion.chars().nth(0).unwrap())
+                .or_default() += 1;
+            if depth != 0 {
+                let counts_left = substitute(&result[0..2], patterns, depth - 1, cache);
+                let counts_right = substitute(&result[1..3], patterns, depth - 1, cache);
+                for (ch, cnt) in counts_left.iter().chain(counts_right.iter()) {
+                    *result_counts.entry(*ch).or_default() += cnt;
+                }
+            }
+
+            break;
+        }
+    }
+    cache.insert((input.to_string(), depth), result_counts.clone());
+    result_counts
+}
+
 fn main() {
-    let contents = fs::read_to_string("day14/input_simple").expect("could not read input");
+    let contents = fs::read_to_string("day14/input").expect("could not read input");
     let mut lines = contents.lines();
-    let mut template = lines.next().unwrap().to_owned();
+    let template = lines.next().unwrap().to_owned();
     lines.next();
     let patterns = lines
         .map(|l| l.split_once(" -> ").unwrap())
@@ -10,48 +44,25 @@ fn main() {
     println!("template: {}", template);
     println!("patterns: {:?}", patterns);
 
-    for step in 0..40 {
-        let mut insertions = Vec::new();
-        for (pattern, insertion) in &patterns {
-            let mut gpos = 0;
-            loop {
-                if let Some(pos) = &template[gpos..].find(pattern) {
-                    insertions.push((gpos + pos + 1, insertion));
-                    gpos += pos + 1;
-                } else {
-                    break;
-                }
-            }
-        }
-        insertions.sort_by(|a, b| a.0.cmp(&b.0));
-        //println!("insertions {:?}", insertions);
-        let mut result = String::new();
-        let mut start = 0usize;
-        for insertion in insertions {
-            /*
-            println!(
-                "> {} + {} + {}",
-                result,
-                &template[start..insertion.0],
-                insertion.1
-            );
-            */
-            result = result + &template[start..insertion.0] + insertion.1;
-            start = insertion.0;
-        }
-        result = result + &template[start..];
-        //println!("step {} result: {}", step, result);
-        template = result;
-    }
-
-    let frequencies = template.chars().fold(HashMap::new(), |mut a, c| {
+    let depth = 40;
+    let mut counts = template.chars().fold(HashMap::new(), |mut a, c| {
         *a.entry(c).or_default() += 1;
         a
     });
+    println!("counts {:?}", counts);
+    let mut cache = HashMap::new();
+    for i in 0..template.len() - 1 {
+        println!("=== i={}", i);
+        let subcounts = substitute(&template[i..i + 2], &patterns, depth - 1, &mut cache);
+        for (ch, cnt) in subcounts {
+            *counts.entry(ch).or_default() += cnt;
+        }
+    }
+    println!("counts {:?}", counts);
 
     let mut min = ('\0', usize::MAX);
     let mut max = ('\0', usize::MIN);
-    for e in frequencies {
+    for e in counts {
         if e.1 > max.1 {
             max = e;
         }
