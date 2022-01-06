@@ -110,7 +110,7 @@ impl Operator {
             }
         } else {
             let len_packets = get_bits(data, offset, 11);
-            for p in 0..len_packets {
+            for _p in 0..len_packets {
                 operands.push(parse_header(data, offset));
             }
         }
@@ -125,8 +125,8 @@ impl Expression for Operator {
     fn evaluate(&self) -> u64 {
         let values = self.operands.iter().map(|e| e.evaluate());
         match self.op {
-            ExpressionType::Sum => values.fold(0, |a, o| a + o),
-            ExpressionType::Product => values.fold(1, |a, o| a * o),
+            ExpressionType::Sum => values.sum(),
+            ExpressionType::Product => values.product(),
             ExpressionType::Minimum => values.fold(u64::MAX, |a, o| a.min(o)),
             ExpressionType::Maximum => values.fold(0, |a, o| a.max(o)),
             ExpressionType::Literal => panic!("unexpected literal"),
@@ -158,9 +158,7 @@ impl Expression for Operator {
     }
 
     fn version_sum(&self) -> u64 {
-        self.operands
-            .iter()
-            .fold(self.version as u64, |a, o| a + o.version_sum())
+        self.operands.iter().map(|o| o.version_sum()).sum::<u64>() + self.version as u64
     }
 }
 fn get_bits(data: &[u8], offset: &mut usize, num_bits: usize) -> u16 {
@@ -175,7 +173,7 @@ fn get_bits(data: &[u8], offset: &mut usize, num_bits: usize) -> u16 {
         _ => panic!("too many bits for u16"),
     };
     let rem_bits = 32 - num_bits;
-    let shifted = data << *offset % 8;
+    let shifted = data << (*offset % 8);
     let mask = !((0b1 << rem_bits) - 1);
     *offset += num_bits;
     ((shifted & mask) >> rem_bits) as u16

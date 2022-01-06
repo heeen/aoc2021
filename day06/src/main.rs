@@ -19,12 +19,10 @@ fn main() {
     println!("age counts {:?}", age_bins);
     for day in 0..257 {
         let mut new_bins = vec![0u64; 9];
-        for i in 0..8 {
-            new_bins[i] = age_bins[i+1];
-        }
+        new_bins[..8].clone_from_slice(&age_bins[1..9]);
         new_bins[6] += age_bins[0];
         new_bins[8] = age_bins[0];
-        println!("day {} age counts {:?} new counts {:?} sum {}", day, age_bins, new_bins, age_bins.iter().fold(0, |a, c| a + c));
+        println!("day {} age counts {:?} new counts {:?} sum {}", day, age_bins, new_bins, age_bins.iter().sum::<u64>());
         age_bins = new_bins;
     }
 }

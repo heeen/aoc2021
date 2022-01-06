@@ -11,7 +11,7 @@ trait FlashPropagator {
     fn dump(&self);
 }
 
-impl FlashPropagator for Vec<Vec<i32>> {
+impl FlashPropagator for Vec<Vec<u32>> {
     fn age_phase(&mut self, stack: &mut Vec<Point>) {
         for (y, row) in self.iter_mut().enumerate() {
             for (x, fish) in row.iter_mut().enumerate() {
@@ -27,25 +27,20 @@ impl FlashPropagator for Vec<Vec<i32>> {
     fn flash_phase(&mut self, stack: Vec<Point>) -> usize {
         let mut stack = stack;
         let mut counter = 0;
-        loop {
-            match stack.pop() {
-                Some(p) => {
-                    counter += 1;
-                    for y in 0.max(p.y as i32 - 1) as usize..self.len().min(p.y + 2) {
-                        let row = &mut self[y];
-                        for x in 0.max(p.x as i32 - 1) as usize..row.len().min(p.x + 2) {
-                            if row[x] == 0 {
-                                continue;
-                            }
-                            row[x] += 1;
-                            if row[x] > 9 {
-                                row[x] = 0;
-                                stack.push(Point { x, y })
-                            }
-                        }
+        while let Some(p) = stack.pop() {
+            counter += 1;
+            for y in 0.max(p.y as i32 - 1) as usize..self.len().min(p.y + 2) {
+                let row = &mut self[y];
+                for x in 0.max(p.x as i32 - 1) as usize..row.len().min(p.x + 2) {
+                    if row[x] == 0 {
+                        continue;
+                    }
+                    row[x] += 1;
+                    if row[x] > 9 {
+                        row[x] = 0;
+                        stack.push(Point { x, y })
                     }
                 }
-                None => break,
             }
         }
         counter
@@ -60,9 +55,9 @@ impl FlashPropagator for Vec<Vec<i32>> {
 
 fn main() {
     let contents = fs::read_to_string("day11/input").expect("could not read input");
-    let input: Vec<Vec<i32>> = contents
+    let input: Vec<Vec<u32>> = contents
         .lines()
-        .map(|l| l.chars().map(|c| c as i32 - '0' as i32).collect())
+        .map(|l| l.chars().map(|c| c.to_digit(10).unwrap()).collect())
         .collect();
 
     let mut counter = 0usize;

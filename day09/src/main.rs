@@ -97,6 +97,6 @@ fn main() {
     println!(
         "basins: {:?} mult {}",
         basin_scores,
-        basin_scores.iter().take(3).fold(1, |a, v| a * v)
+        basin_scores.iter().take(3).product::<u64>()
     );
 }

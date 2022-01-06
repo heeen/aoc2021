@@ -80,11 +80,11 @@ impl Bingoboard {
         /*    The score of the winning board can now be calculated. Start by finding the sum of all unmarked numbers on that board; in this case, the sum is 188. Then, multiply that sum by the number that was just called when the board won, 24, to get the final score, 188 * 24 = 4512.*/
         for y in 0..5 {
             for x in 0..5 {
-                if self.fields[y][x].marked == false {
+                if !self.fields[y][x].marked {
                     score += self.fields[y][x].value
                 }
             }
         }
-        return score * last;
+        score * last
     }
 }

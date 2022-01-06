@@ -26,6 +26,7 @@ impl Ord for PointQueueEntry {
         other.cost_sum.cmp(&self.cost_sum)
     }
 }
+
 impl PartialEq for PointQueueEntry {
     fn eq(&self, other: &Self) -> bool {
         self.cost_sum == other.cost_sum
@@ -100,7 +101,6 @@ fn main() {
         x: input[0].len() as i32 * 5 - 1,
     };
 
-    println!("dest={:?}", dest);
     let mut known_costs = HashMap::new();
     let mut work_queue = BinaryHeap::new();
     work_queue.push(PointQueueEntry {
@@ -117,8 +117,6 @@ fn main() {
     loop {
         if let Some(point) = work_queue.pop() {
             let pos = point.pos;
-            //println!("\npopped {:?}", point);
-            //println!("workqueue {:?}", work_queue);
             if pos == dest {
                 println!("reached with cost {:?}", point);
                 break;
@@ -147,22 +145,6 @@ fn main() {
             println!("empty");
             break;
         }
-        /*
-        for y in 0..input.len() * 5 {
-            for x in 0..input[0].len() * 5 {
-                print!(
-                    "{:3} ",
-                    known_costs
-                        .get(&Point {
-                            x: x as i32,
-                            y: y as i32
-                        })
-                        .unwrap_or(&999)
-                )
-            }
-            println!("");
-        }
-        */
     }
 /*
     let mut path_set = HashSet::new();

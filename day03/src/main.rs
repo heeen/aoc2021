@@ -15,8 +15,8 @@ fn main() {
     let mut gamma: u32 = 0;
     let mut epsilon: u32 = 0;
     let mut bit = 1 << (width - 1);
-    for i in 0..width {
-        if ones[i] * 2 > values.len() {
+    for one in ones {
+        if one * 2 > values.len() {
             gamma += bit;
         } else {
             epsilon += bit;
@@ -44,7 +44,7 @@ fn main() {
     }
 
     let mut scrubber = 0;
-    let mut filtered_scrubber = values.clone();
+    let mut filtered_scrubber = values;
     let mut bit = 1 << (width - 1);
     for i in 0..width {
         let ones = count_bits(filtered_scrubber.iter(), width);
@@ -71,9 +71,9 @@ fn main() {
 fn count_bits(values: Iter<u64>, width: usize) -> Vec<usize> {
     values.fold(vec![0usize; width], |mut accum, l| {
         let mut bit = 1 << (width - 1);
-        for i in 0..width {
+        for a in accum.iter_mut() {
             if l & bit == bit {
-                accum[i] += 1;
+                *a += 1;
             }
             bit >>= 1;
         }

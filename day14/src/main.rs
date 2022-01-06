@@ -2,11 +2,10 @@ use std::{collections::HashMap, fs};
 
 fn substitute<'a>(
     input: &'a str,
-    patterns: &Vec<(&str, &str)>,
+    patterns: &[(&str, &str)],
     depth: usize,
     cache: &'a mut HashMap<(String, usize), HashMap<char, usize>>,
 ) -> HashMap<char, usize> {
-
     if let Some(entry) = cache.get(&(input.to_string(), depth)) {
         return entry.clone();
     }
@@ -16,14 +15,17 @@ fn substitute<'a>(
         if input == *pattern {
             let result = String::new() + &input[0..1] + *insertion + &input[1..];
             *result_counts
-                .entry(insertion.chars().nth(0).unwrap())
+                .entry(insertion.chars().next().unwrap())
                 .or_default() += 1;
             if depth != 0 {
-                let counts_left = substitute(&result[0..2], patterns, depth - 1, cache);
-                let counts_right = substitute(&result[1..3], patterns, depth - 1, cache);
-                for (ch, cnt) in counts_left.iter().chain(counts_right.iter()) {
-                    *result_counts.entry(*ch).or_default() += cnt;
-                }
+                merge(
+                    &mut result_counts,
+                    substitute(&result[0..2], patterns, depth - 1, cache),
+                );
+                merge(
+                    &mut result_counts,
+                    substitute(&result[1..3], patterns, depth - 1, cache),
+                );
             }
 
             break;
@@ -31,6 +33,12 @@ fn substitute<'a>(
     }
     cache.insert((input.to_string(), depth), result_counts.clone());
     result_counts
+}
+
+fn merge(a: &mut HashMap<char, usize>, b: HashMap<char, usize>) {
+    for (ch, cnt) in b {
+        *a.entry(ch).or_default() += cnt;
+    }
 }
 
 fn main() {
@@ -49,14 +57,12 @@ fn main() {
         *a.entry(c).or_default() += 1;
         a
     });
-    println!("counts {:?}", counts);
     let mut cache = HashMap::new();
     for i in 0..template.len() - 1 {
-        println!("=== i={}", i);
-        let subcounts = substitute(&template[i..i + 2], &patterns, depth - 1, &mut cache);
-        for (ch, cnt) in subcounts {
-            *counts.entry(ch).or_default() += cnt;
-        }
+        merge(
+            &mut counts,
+            substitute(&template[i..i + 2], &patterns, depth - 1, &mut cache),
+        );
     }
     println!("counts {:?}", counts);
 
