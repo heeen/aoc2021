@@ -27,51 +27,6 @@ impl fmt::Display for SnailPair {
     }
 }
 
-impl SnailPair {
-    fn explode(&mut self, level: u32) -> (Option<u32>, Option<u32>) {
-        let (mut ret_l, mut ret_r) = (None, None);
-        if level < 4 {
-            if let SnailNum::Pair(pair) = &mut self.left {
-                let (ll, lr) = pair.explode(level + 1);
-                if let Some(v) = lr {
-                    pair.add_left(v);
-                }
-                ret_l = ll;
-            }
-            if let SnailNum::Pair(pair) = &mut self.right {
-                let (rl, rr) = pair.explode(level + 1);
-                if let Some(v) = rl {
-                    pair.add_right(v);
-                }
-                ret_r = rr;
-            }
-        } else {
-            if let SnailNum::Just(v) = self.left {
-                ret_l = Some(v)
-            }
-            if let SnailNum::Just(v) = self.right {
-                ret_r = Some(v)
-            }
-        }
-        println!(
-            "level {} {} exploding into {:?}, {:?}",
-            level, self, ret_l, ret_r
-        );
-        (ret_l, ret_r)
-    }
-    fn add_right(&mut self, v: u32) {
-        match &mut self.right {
-            SnailNum::Just(o) => self.left = SnailNum::Just(*o + v),
-            SnailNum::Pair(pair) => pair.add_right(v),
-        }
-    }
-    fn add_left(&mut self, v: u32) {
-        match &mut self.left {
-            SnailNum::Just(o) => self.left = SnailNum::Just(*o + v),
-            SnailNum::Pair(pair) => pair.add_left(v),
-        }
-    }
-}
 fn parse_snailfish_number(input: &str, mut cursor: usize) -> (SnailNum, usize) {
     let mut ch = input.chars().nth(cursor).unwrap();
     if let Some(d) = ch.to_digit(10) {
@@ -94,11 +49,73 @@ fn parse_snailfish_number(input: &str, mut cursor: usize) -> (SnailNum, usize) {
 }
 
 impl SnailNum {
-    pub(crate) fn reduce(&mut self) {
+    fn explode(&mut self, level: u32) -> (bool, Option<u32>, Option<u32>) {
         match self {
-            SnailNum::Just(_) => {}
+            SnailNum::Just(_) => (false, None, None),
+            SnailNum::Pair(self_pair) if level < 4 => {
+                let (exp, l, r) = self_pair.left.explode(level + 1);
+                if exp {
+                    if let Some(v) = r {
+                        self_pair.right.add_left(v);
+                    }
+                    return (true, l, None);
+                }
+
+                let (exp, l, r) = self_pair.right.explode(level + 1);
+                if exp {
+                    if let Some(v) = l {
+                        self_pair.left.add_right(v);
+                    }
+                    return (true, None, r);
+                }
+                (false, None, None)
+            }
             SnailNum::Pair(pair) => {
-                pair.explode(0);
+                let ret = match (&pair.left, &pair.right) {
+                    (SnailNum::Just(l), SnailNum::Just(r)) => (true, Some(*l), Some(*r)),
+                    (_, _) => panic!("expected simple value pair, not nested pair"),
+                };
+                *self = SnailNum::Just(0);
+                return ret;
+            }
+        }
+    }
+
+    pub(crate) fn split(&mut self) -> bool {
+        match self {
+            SnailNum::Just(v) if *v > 9 => {
+                let l = (*v as f32 / 2.0).floor() as u32;
+                let r = (*v as f32 / 2.0).ceil() as u32;
+                let num = SnailNum::Pair(Box::new(SnailPair {
+                    left: SnailNum::Just(l),
+                    right: SnailNum::Just(r),
+                }));
+                *self = num;
+                true
+            }
+            SnailNum::Just(_) => false,
+            SnailNum::Pair(self_pair) => self_pair.left.split() || self_pair.right.split(),
+        }
+    }
+
+    pub(crate) fn add_left(&mut self, a: u32) {
+        match self {
+            SnailNum::Just(v) => *self = SnailNum::Just(*v + a),
+            SnailNum::Pair(self_pair) => self_pair.left.add_left(a),
+        }
+    }
+
+    pub(crate) fn add_right(&mut self, a: u32) {
+        match self {
+            SnailNum::Just(v) => *self = SnailNum::Just(*v + a),
+            SnailNum::Pair(self_pair) => self_pair.right.add_right(a),
+        }
+    }
+    fn magnitude(&self) -> u64 {
+        match self {
+            SnailNum::Just(v) => *v as u64,
+            SnailNum::Pair(self_pair) => {
+                self_pair.left.magnitude() * 3 + self_pair.right.magnitude() * 2
             }
         }
     }
@@ -106,30 +123,49 @@ impl SnailNum {
 
 impl std::ops::Add for &SnailNum {
     type Output = SnailNum;
-
     fn add(self, rhs: Self) -> Self::Output {
         let mut num = SnailNum::Pair(Box::new(SnailPair {
             left: self.clone(),
             right: rhs.clone(),
         }));
-        println!("Adding {} + {}: {}", self, rhs, num);
-        num.reduce();
-        println!("after reduction:{}", num);
+        loop {
+            let (exp, _, _) = num.explode(0);
+            if exp {
+                continue;
+            }
+            if !num.split() {
+                break;
+            }
+        }
         num
     }
 }
+
 fn main() {
-    println!("Hello, world!");
-    let content = fs::read_to_string("day18/input_simple2").unwrap();
+    let content = fs::read_to_string("day18/input").unwrap();
 
     let numbers: Vec<_> = content
         .lines()
         .map(|e| parse_snailfish_number(e, 0).0)
         .collect();
-    for number in &numbers {
+
+    let mut sum = numbers[0].clone();
+    for (i, number) in (&numbers[1..]).iter().enumerate() {
         println!("{}", number);
+        sum = &sum + number;
+        println!("add {}", number);
+        println!("sum {} mag {}", sum, sum.magnitude());
     }
 
-    let addition = &numbers[0] + &numbers[1];
-    println!("addition {}", addition);
+    let mut max = 0;
+    for (i1, num1) in numbers.iter().enumerate() {
+        for (i2, num2) in numbers.iter().enumerate() {
+            let sum = num1 + num2;
+            let mag = sum.magnitude();
+            if mag > max {
+                max = mag;
+                println!("new max: {}+{} {}", num1, num2, mag);
+            }
+        }
+    }
 }
