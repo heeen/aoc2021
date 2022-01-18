@@ -153,22 +153,59 @@ fn main() {
                 .push(constellation);
         }
     }
-    for (distance, constellations) in constellations_scanners {
-        if constellations.len() < 2 {
+
+    let mut workqueue: Vec<_> = vec![0];
+    let mut unified_beacons: HashSet<Pos> = scanners[0].beacons.iter().cloned().collect();
+    let mut visited_scanners = HashSet::new();
+    while let Some(scanner_index) = workqueue.pop() {
+        if visited_scanners.contains(&scanner_index) {
             continue;
         }
-        println!("constellation {distance:?} scanner constellations: {constellations:?}");
-        for (comb_a, comb_b) in constellations.iter().tuple_combinations() {
-            check_match(&scanners, comb_a, comb_b);
+        println!("----------- popped scanner {scanner_index}");
+        let constellations = scanners[scanner_index].constellations.clone();
+
+        for links in constellations
+            .iter()
+            .map(|c| &constellations_scanners[&c.distance])
+        {
+            if links.len() < 2 {
+                continue;
+            }
+            for (c_a, c_b) in links
+                .iter()
+                .filter(|c| !visited_scanners.contains(&c.scanner))
+                .tuple_combinations()
+            {
+                let (c_self, c_other, other) = if c_a.scanner == scanner_index {
+                    (c_a, c_b, c_b.scanner)
+                } else if c_b.scanner == scanner_index {
+                    (c_b, c_a, c_a.scanner)
+                } else {
+                    continue;
+                };
+
+                println!("checking {scanner_index} - {other}");
+                if let Some(result) = check_match(&scanners, c_self, c_other) {
+                    assert_eq!(scanners[other].beacons.len(), result.2.len());
+                    scanners[other].beacons = result.2;
+
+                    unified_beacons = unified_beacons.union(&scanners[other].beacons.iter().cloned().collect()).cloned().collect();
+                    workqueue.push(other);
+                }
+            }
         }
+        visited_scanners.insert(scanner_index);
     }
+    assert_eq!(visited_scanners.len(), scanners.len());
+    println!("unified beacons: {} ", unified_beacons.len());
+    assert!(unified_beacons.len() < 2347);
 }
 
 fn check_match(
     scanners: &[Scanner],
     c_a: &Constellation,
     c_b: &Constellation,
-) -> Option<((UpAxis, Rotation), Pos, HashSet<Pos>)> {
+) -> Option<((UpAxis, Rotation), Pos, Vec<Pos>)> {
     let (scanner_a, scanner_b) = (&scanners[c_a.scanner], &scanners[c_b.scanner]);
     let (a_0, a_1) = (
         scanner_a.beacons[c_a.indices.0],
@@ -182,32 +219,37 @@ fn check_match(
     let v_a = a_1 - a_0;
     let v_a_inv = a_0 - a_1;
     let v_b = b_1 - b_0;
-    println!("matching {c_a:?} with {c_b:?}\n vectors {v_a:?} {v_b:?}");
+    //println!("matching {c_a:?} with {c_b:?}\n vectors {v_a:?} {v_b:?}");
 
-    let mut combined_beacons = HashSet::new();
+    let mut scanner_a_beacons = HashSet::new();
     for beacon in scanner_a.beacons.iter() {
-        combined_beacons.insert(*beacon);
+        scanner_a_beacons.insert(*beacon);
     }
 
     for orientation in UpAxis::into_enum_iter().cartesian_product(Rotation::into_enum_iter()) {
         let transformed = v_b.transformed(orientation);
-        let dist = match transformed {
-            v_a => Some(a_0 - b_0.transformed(orientation)),
-            v_a_inv => Some(a_0 - b_1.transformed(orientation)),
-            _ => None,
+        let dist = if transformed == v_a {
+            Some(a_0 - b_0.transformed(orientation))
+        } else if transformed == v_a_inv {
+            Some(a_0 - b_1.transformed(orientation))
+        } else {
+            None
         };
 
+        let mut scanner_b_beacons = Vec::new();
+        let mut overlap = 0usize;
         if let Some(dist) = dist {
             for beacon in scanner_b.beacons.iter() {
                 let p = beacon.transformed(orientation) + dist;
-                if combined_beacons.contains(&p) {
-                    println!("both a and b: {beacon:?} -> {p:?}");
-                } else {
-                    println!("only in b: {beacon:?} {p:?}");
-                    combined_beacons.insert(p);
-                }
+                if scanner_a_beacons.contains(&p) {
+                    overlap += 1;
+                } 
+                scanner_b_beacons.push(p);
             }
-            return Some((orientation, dist, combined_beacons));
+            if (overlap <= 2) {
+                continue;
+            }
+            return Some((orientation, dist, scanner_b_beacons));
         }
     }
 
