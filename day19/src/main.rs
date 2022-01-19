@@ -98,29 +98,30 @@ struct Constellation {
 }
 
 fn main() {
-    let mut scanners = fs::read_to_string("day19/input")
-        .unwrap()
-        .lines()
-        .fold(Vec::new(), |mut a, line| {
-            if line.starts_with("---") {
-                a.push(Scanner::new());
-            } else if !line.is_empty() {
-                let mut parts = line.split(',').map(|p| p.parse::<i32>().unwrap());
-                let last = a.last_mut().unwrap();
-                let (x, y, z) = (
-                    parts.next().unwrap(),
-                    parts.next().unwrap(),
-                    parts.next().unwrap(),
-                );
+    let mut scanners =
+        fs::read_to_string("day19/input")
+            .unwrap()
+            .lines()
+            .fold(Vec::new(), |mut a, line| {
+                if line.starts_with("---") {
+                    a.push(Scanner::new());
+                } else if !line.is_empty() {
+                    let mut parts = line.split(',').map(|p| p.parse::<i32>().unwrap());
+                    let last = a.last_mut().unwrap();
+                    let (x, y, z) = (
+                        parts.next().unwrap(),
+                        parts.next().unwrap(),
+                        parts.next().unwrap(),
+                    );
 
-                let octant = if x.signum() > 0 { 1 } else { 0 }
-                    + if y.signum() > 0 { 2 } else { 0 }
-                    + if z.signum() > 0 { 4 } else { 0 };
-                last.octants[octant].push(last.beacons.len());
-                last.beacons.push(Pos { x, y, z });
-            }
-            a
-        });
+                    let octant = if x.signum() > 0 { 1 } else { 0 }
+                        + if y.signum() > 0 { 2 } else { 0 }
+                        + if z.signum() > 0 { 4 } else { 0 };
+                    last.octants[octant].push(last.beacons.len());
+                    last.beacons.push(Pos { x, y, z });
+                }
+                a
+            });
 
     let mut constellations_scanners = HashMap::new();
 
@@ -158,13 +159,9 @@ fn main() {
     let mut unified_beacons: HashSet<Pos> = scanners[0].beacons.iter().cloned().collect();
     let mut visited_scanners = HashSet::new();
     while let Some(scanner_index) = workqueue.pop() {
-        if visited_scanners.contains(&scanner_index) {
-            continue;
-        }
         println!("----------- popped scanner {scanner_index}");
         let constellations = scanners[scanner_index].constellations.clone();
 
-        let mut successful_links = HashSet::new();
         for links in constellations
             .iter()
             .map(|c| &constellations_scanners[&c.distance])
@@ -174,7 +171,6 @@ fn main() {
             }
             for (c_a, c_b) in links
                 .iter()
-                .filter(|c| !visited_scanners.contains(&c.scanner))
                 .tuple_combinations()
             {
                 let (c_self, c_other, other) = if c_a.scanner == scanner_index {
@@ -184,7 +180,7 @@ fn main() {
                 } else {
                     continue;
                 };
-                if successful_links.contains(&other) {
+                if visited_scanners.contains(&other) {
                     continue;
                 }
 
@@ -201,11 +197,10 @@ fn main() {
                         .cloned()
                         .collect();
                     workqueue.push(other);
-                    successful_links.insert(other);
+                    visited_scanners.insert(other);
                 }
             }
         }
-        visited_scanners.insert(scanner_index);
     }
     assert_eq!(visited_scanners.len(), scanners.len());
     println!("unified beacons: {} ", unified_beacons.len());
@@ -227,7 +222,7 @@ fn main() {
         .unwrap();
 
     println!("max distance: {:?}", max_dist);
-    assert!(max_dist.0 < 39680);
+    assert_eq!(max_dist.0, 12306);
     assert_eq!(unified_beacons.len(), 405);
 }
 
