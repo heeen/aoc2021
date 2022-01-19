@@ -87,6 +87,7 @@ struct Scanner {
     beacons: Vec<Pos>,
     octants: [Vec<usize>; 8],
     constellations: Vec<Constellation>,
+    position: Pos,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -97,30 +98,29 @@ struct Constellation {
 }
 
 fn main() {
-    let mut scanners =
-        fs::read_to_string("day19/input")
-            .unwrap()
-            .lines()
-            .fold(Vec::new(), |mut a, line| {
-                if line.starts_with("---") {
-                    a.push(Scanner::new());
-                } else if !line.is_empty() {
-                    let mut parts = line.split(',').map(|p| p.parse::<i32>().unwrap());
-                    let last = a.last_mut().unwrap();
-                    let (x, y, z) = (
-                        parts.next().unwrap(),
-                        parts.next().unwrap(),
-                        parts.next().unwrap(),
-                    );
+    let mut scanners = fs::read_to_string("day19/input")
+        .unwrap()
+        .lines()
+        .fold(Vec::new(), |mut a, line| {
+            if line.starts_with("---") {
+                a.push(Scanner::new());
+            } else if !line.is_empty() {
+                let mut parts = line.split(',').map(|p| p.parse::<i32>().unwrap());
+                let last = a.last_mut().unwrap();
+                let (x, y, z) = (
+                    parts.next().unwrap(),
+                    parts.next().unwrap(),
+                    parts.next().unwrap(),
+                );
 
-                    let octant = if x.signum() > 0 { 1 } else { 0 }
-                        + if y.signum() > 0 { 2 } else { 0 }
-                        + if z.signum() > 0 { 4 } else { 0 };
-                    last.octants[octant].push(last.beacons.len());
-                    last.beacons.push(Pos { x, y, z });
-                }
-                a
-            });
+                let octant = if x.signum() > 0 { 1 } else { 0 }
+                    + if y.signum() > 0 { 2 } else { 0 }
+                    + if z.signum() > 0 { 4 } else { 0 };
+                last.octants[octant].push(last.beacons.len());
+                last.beacons.push(Pos { x, y, z });
+            }
+            a
+        });
 
     let mut constellations_scanners = HashMap::new();
 
@@ -164,6 +164,7 @@ fn main() {
         println!("----------- popped scanner {scanner_index}");
         let constellations = scanners[scanner_index].constellations.clone();
 
+        let mut successful_links = HashSet::new();
         for links in constellations
             .iter()
             .map(|c| &constellations_scanners[&c.distance])
@@ -183,14 +184,24 @@ fn main() {
                 } else {
                     continue;
                 };
+                if successful_links.contains(&other) {
+                    continue;
+                }
 
-                println!("checking {scanner_index} - {other}");
-                if let Some(result) = check_match(&scanners, c_self, c_other) {
-                    assert_eq!(scanners[other].beacons.len(), result.2.len());
-                    scanners[other].beacons = result.2;
+                if let Some((orientation, dist, transformed_b_beacons)) =
+                    check_match(&scanners, c_self, c_other)
+                {
+                    assert_eq!(scanners[other].beacons.len(), transformed_b_beacons.len());
+                    println!("connection {scanner_index} - {other}: {orientation:?} dist {dist:?}");
+                    scanners[other].beacons = transformed_b_beacons;
+                    scanners[other].position = dist;
 
-                    unified_beacons = unified_beacons.union(&scanners[other].beacons.iter().cloned().collect()).cloned().collect();
+                    unified_beacons = unified_beacons
+                        .union(&scanners[other].beacons.iter().cloned().collect())
+                        .cloned()
+                        .collect();
                     workqueue.push(other);
+                    successful_links.insert(other);
                 }
             }
         }
@@ -198,7 +209,26 @@ fn main() {
     }
     assert_eq!(visited_scanners.len(), scanners.len());
     println!("unified beacons: {} ", unified_beacons.len());
-    assert!(unified_beacons.len() < 2347);
+    let max_dist = scanners
+        .iter()
+        .enumerate()
+        .tuple_combinations()
+        .map(|((a_i, a), (b_i, b))| {
+            let d = a.position - b.position;
+            (
+                d.x.abs() + d.y.abs() + d.z.abs(),
+                a_i,
+                b_i,
+                a.position,
+                b.position,
+            )
+        })
+        .max_by_key(|e| e.0)
+        .unwrap();
+
+    println!("max distance: {:?}", max_dist);
+    assert!(max_dist.0 < 39680);
+    assert_eq!(unified_beacons.len(), 405);
 }
 
 fn check_match(
@@ -219,7 +249,6 @@ fn check_match(
     let v_a = a_1 - a_0;
     let v_a_inv = a_0 - a_1;
     let v_b = b_1 - b_0;
-    //println!("matching {c_a:?} with {c_b:?}\n vectors {v_a:?} {v_b:?}");
 
     let mut scanner_a_beacons = HashSet::new();
     for beacon in scanner_a.beacons.iter() {
@@ -229,28 +258,26 @@ fn check_match(
     for orientation in UpAxis::into_enum_iter().cartesian_product(Rotation::into_enum_iter()) {
         let transformed = v_b.transformed(orientation);
         let dist = if transformed == v_a {
-            Some(a_0 - b_0.transformed(orientation))
+            a_0 - b_0.transformed(orientation)
         } else if transformed == v_a_inv {
-            Some(a_0 - b_1.transformed(orientation))
+            a_0 - b_1.transformed(orientation)
         } else {
-            None
+            continue;
         };
 
         let mut scanner_b_beacons = Vec::new();
         let mut overlap = 0usize;
-        if let Some(dist) = dist {
-            for beacon in scanner_b.beacons.iter() {
-                let p = beacon.transformed(orientation) + dist;
-                if scanner_a_beacons.contains(&p) {
-                    overlap += 1;
-                } 
-                scanner_b_beacons.push(p);
+        for beacon in scanner_b.beacons.iter() {
+            let p = beacon.transformed(orientation) + dist;
+            if scanner_a_beacons.contains(&p) {
+                overlap += 1;
             }
-            if (overlap <= 2) {
-                continue;
-            }
-            return Some((orientation, dist, scanner_b_beacons));
+            scanner_b_beacons.push(p);
         }
+        if overlap < 12 {
+            continue;
+        }
+        return Some((orientation, dist, scanner_b_beacons));
     }
 
     None
@@ -261,6 +288,7 @@ impl Scanner {
             beacons: Vec::new(),
             octants: [(); 8].map(|_| Vec::new()),
             constellations: Vec::new(),
+            position: Pos { x: 0, y: 0, z: 0 },
         }
     }
 }
