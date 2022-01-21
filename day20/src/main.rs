@@ -17,18 +17,18 @@ struct TileImage {
 }
 
 impl TileImage {
-    fn get(&self, x: i32, y: i32) -> bool {
+    fn get(&self, x: i32, y: i32, voidValue: bool) -> bool {
         if x < self.minX || x > self.maxX || y < self.minY || y > self.maxY {
-            false
+            voidValue
         } else {
             self.set.contains(&(x, y))
         }
     }
-    fn get_9(&self, x: i32, y: i32) -> usize {
+    fn get_9(&self, x: i32, y: i32, voidValue: bool) -> usize {
         let mut result = 0;
         for iy in y - 1..=y + 1 {
             for ix in x - 1..=x + 1 {
-                result = (result << 1) | self.get(ix, iy) as usize;
+                result = (result << 1) | self.get(ix, iy, voidValue) as usize;
             }
         }
         result
@@ -50,11 +50,13 @@ impl TileImage {
             set: HashSet::new(),
         }
     }
-    fn fold(&self, program: &Vec<u8>) -> Self {
+    fn fold(&self, program: &Vec<u8>, voidValue: bool) -> Self {
         let mut result_image = TileImage::new();
-        for y in self.minY - 2..=self.maxY + 2 {
-            for x in self.minX - 2..=self.maxX + 2 {
-                let lookup = self.get_9(x, y);
+
+        const MARGIN: i32 = 2;
+        for y in self.minY - MARGIN..=self.maxY + MARGIN {
+            for x in self.minX - MARGIN..=self.maxX + MARGIN {
+                let lookup = self.get_9(x, y, voidValue);
                 if program[lookup] == '#' as u8 {
                     result_image.set(x, y)
                 }
@@ -67,7 +69,7 @@ impl Display for TileImage {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for y in self.minY..=self.maxY {
             for x in self.minX..=self.maxX {
-                write!(f, "{}", if self.get(x, y) { '#' } else { '.' });
+                write!(f, "{}", if self.get(x, y, false) { '#' } else { '.' });
             }
             write!(f, "\n");
         }
@@ -88,6 +90,7 @@ fn main() {
     let mut input = input.lines();
     let program = input.next().unwrap().chars().map(|c| c as u8).collect_vec();
 
+    let program_inverts_void = program[0] == '#' as u8;
     let mut img = TileImage::new();
     let seed = input
         .filter_map(|l| {
@@ -111,7 +114,7 @@ fn main() {
 
     let mut input = img.clone();
     for i in 0..2 {
-        let result_image = input.fold(&program);
+        let result_image = input.fold(&program, program_inverts_void && i % 2 == 1);
         println!("result {}:\n{}", i, result_image);
         input = result_image;
     }
