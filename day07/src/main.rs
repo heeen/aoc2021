@@ -44,5 +44,5 @@ fn main() {
         next_cost = cost_fn(next_pos);
     }
 
-    println!("position {} cost {}", last_pos, last_cost);
+    println!("position {last_pos} cost {last_cost}");
 }

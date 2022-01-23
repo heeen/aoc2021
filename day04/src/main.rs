@@ -47,7 +47,7 @@ fn main() {
 
     let mut won_count = 0;
     for draw in moves {
-        println!("drawn: {}", draw);
+        println!("drawn: {draw}");
         for (bi, board) in boards.iter_mut().enumerate() {
             if board.won {
                 continue;
@@ -55,13 +55,12 @@ fn main() {
             for y in 0..5 {
                 for x in 0..5 {
                     if board.fields[y][x].value == draw {
-                        //println!("board {} hit {} {}", bi, x, y);
                         board.fields[y][x].marked = true;
                         board.col_marked[x] += 1;
                         board.row_marked[y] += 1;
                         if board.col_marked[x] == 5 || board.row_marked[y] == 5 {
                             let score = board.get_score(draw);
-                            println!("BINGO board {}: score {}", bi, score);
+                            println!("BINGO board {bi}: score {score}");
                             board.won = true;
                             won_count += 1;
                         }

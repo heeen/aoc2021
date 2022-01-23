@@ -61,7 +61,7 @@ fn main() {
             let patterns: Vec<_> = patterns
                 .split_ascii_whitespace()
                 .sorted_by(|a, b| a.len().cmp(&b.len()))
-                .map(|wires| to_bit_set(wires))
+                .map(to_bit_set)
                 .collect();
 
             let def = PatternDef {
@@ -92,7 +92,7 @@ fn main() {
             .fold(0u64, |a, digit| a * 10 + (digit.unwrap() as u64));
         print!("patterns:");
         for (i, pattern) in line.0.iter().enumerate() {
-            print!("{}:{:08b} (#{}), ",i, pattern, pattern.count_ones());
+            print!("{i}:{pattern:08b} (#{}), ", pattern.count_ones());
         }
         println!(" values {:?} {}", line.1, value);
         sum += value;

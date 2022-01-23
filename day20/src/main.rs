@@ -113,9 +113,9 @@ fn main() {
     println!("{}", std::str::from_utf8(&program).unwrap());
 
     let mut input = img.clone();
-    for i in 0..2 {
+    for i in 0..50 {
         let result_image = input.fold(&program, program_inverts_void && i % 2 == 1);
-        println!("result {}:\n{}", i, result_image);
         input = result_image;
     }
+    println!("result:\n{}", input);
 }

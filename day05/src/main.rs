@@ -64,8 +64,5 @@ fn main() {
     });
     let count1 = overlaps(lines.clone(), true);
     let count2 = overlaps(lines.clone(), false);
-    println!(
-        "two or more: diagnoals {} without diagonals {}",
-        count1, count2
-    );
+    println!("two or more: diagnoals {count1} without diagonals {count2}");
 }

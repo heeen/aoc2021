@@ -14,9 +14,9 @@ fn main() {
                 }
             }
         },
-    );
+    ).1;
 
-    println!("day 1 part 1: {}", value.1);
+    println!("day 1 part 1: {value}");
 
     let values: Vec<i32>  = contents.lines().map(|l| l.parse::<i32>().unwrap()).collect();
     let mut accum = 0;
@@ -28,5 +28,5 @@ fn main() {
         }
         sum = newsum;
     }
-    println!("day 1 part 2: {}", accum);
+    println!("day 1 part 2: {accum}");
 }

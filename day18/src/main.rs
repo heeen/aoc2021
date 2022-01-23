@@ -76,7 +76,7 @@ impl SnailNum {
                     (_, _) => panic!("expected simple value pair, not nested pair"),
                 };
                 *self = SnailNum::Just(0);
-                return ret;
+                ret
             }
         }
     }
@@ -150,21 +150,21 @@ fn main() {
         .collect();
 
     let mut sum = numbers[0].clone();
-    for (i, number) in (&numbers[1..]).iter().enumerate() {
-        println!("{}", number);
+    for number in (&numbers[1..]).iter() {
+        println!("{number}");
         sum = &sum + number;
-        println!("add {}", number);
-        println!("sum {} mag {}", sum, sum.magnitude());
+        println!("add {number}");
+        println!("sum {sum} mag {}", sum.magnitude());
     }
 
     let mut max = 0;
-    for (i1, num1) in numbers.iter().enumerate() {
-        for (i2, num2) in numbers.iter().enumerate() {
+    for  num1 in numbers.iter() {
+        for num2 in numbers.iter() {
             let sum = num1 + num2;
             let mag = sum.magnitude();
             if mag > max {
                 max = mag;
-                println!("new max: {}+{} {}", num1, num2, mag);
+                println!("new max: {num1}+{num2} {mag}");
             }
         }
     }

@@ -23,7 +23,7 @@ fn main() {
         }
         bit >>= 1;
     }
-    println!("day 3 part 1: {} {} {}", gamma, epsilon, gamma * epsilon);
+    println!("day 3 part 1: {gamma} {epsilon} {}", gamma * epsilon);
 
     let mut oxygen = 0;
     let mut filtered_o2 = values.clone();
@@ -61,9 +61,7 @@ fn main() {
     }
 
     println!(
-        "day 3 part 1: {} {} {}",
-        oxygen,
-        scrubber,
+        "day 3 part 1: {oxygen} {scrubber} {}",
         oxygen * scrubber
     );
 }
