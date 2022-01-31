@@ -66,7 +66,12 @@ fn main() {
         player2_pos = 8u32 - 1;
     }
     deterministic_game(player1_pos, player2_pos);
-    quantum_game(player1_pos, player2_pos);
+    let (p1_wins, p2_wins) = quantum_game(player1_pos, player2_pos);
+    if simple {
+        assert_eq!(p1_wins, 444356092776315);
+        assert_eq!(p2_wins, 341960390180808);
+    }
+    println!("more wins: {}", p1_wins.max(p2_wins));
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -76,6 +81,18 @@ struct PlayerState {
     choices: u64,
 }
 
+/*
+sum combinations
+3 	1
+4 	3
+5 	6
+6 	7
+7 	6
+8 	3
+9 	1
+-----
+    27
+*/
 fn quantum_rolls(state: &PlayerState, out: &mut Vec<PlayerState>) {
     out.append(
         &mut [(3, 1), (4, 3), (5, 6), (6, 7), (7, 6), (8, 3), (9, 1)]
@@ -92,17 +109,17 @@ fn quantum_rolls(state: &PlayerState, out: &mut Vec<PlayerState>) {
     );
 }
 
-fn win_table(start: u32) -> HashMap<i32, Vec<PlayerState>> {
+fn win_table(start: u32, first: bool) -> HashMap<i32, (Vec<PlayerState>, Vec<PlayerState>)> {
     let mut table = HashMap::new();
     let mut workqueue = vec![PlayerState {
         pos: start,
         score: 0,
-        choices: 1,
+        choices: if first { 1 } else { 27 },
     }];
     let mut round = 0;
     while !workqueue.is_empty() {
         println!("--- round {round} ---");
-        let (wins, cont) = workqueue
+        let (wins, mut cont): (Vec<PlayerState>, Vec<PlayerState>) = workqueue
             .iter()
             .fold(Vec::new(), |mut a, s| {
                 quantum_rolls(s, &mut a);
@@ -110,34 +127,50 @@ fn win_table(start: u32) -> HashMap<i32, Vec<PlayerState>> {
             })
             .iter()
             .partition(|e| e.score >= 21);
-        workqueue = cont;
 
         for s in &wins {
             println!("win pos {} score {} choices {}", s.pos, s.score, s.choices)
         }
-        table.insert(round, wins);
-        for s in &workqueue {
-            println!("pos {} score {} choices {}", s.pos, s.score, s.choices)
+        table.insert(round, (wins, cont.clone()));
+
+        for s in &mut cont {
+            println!("pos {} score {} choices {}", s.pos, s.score, s.choices);
         }
+        workqueue = cont;
         round += 1;
     }
-   table
+    table
 }
-fn quantum_game(player1_pos: u32, player2_pos: u32) {
-    let p1_wins = win_table(player1_pos);
-    let p2_wins = win_table(player2_pos);
+fn quantum_game(player1_pos: u32, player2_pos: u32) -> (u64, u64) {
+    let p1_results = win_table(player1_pos, true);
+    let p2_results = win_table(player2_pos, false);
+    let mut p1_win_sum = 0;
+    let mut p2_win_sum = 0;
 
+    let mut p1_loss_choices = 1;
+    let mut p2_loss_choices = 1;
+    for i in 0..p1_results.len() as i32 {
+        let (p1_wins, p1_losses) = &p1_results[&i];
+        let (p2_wins, p2_losses) = &p2_results[&i];
+        let p1_win_choices = p1_wins.iter().map(|r| r.choices).sum::<u64>();
+
+        p1_win_sum += p2_loss_choices * p1_win_choices;
+        p1_loss_choices = p1_losses.iter().map(|r| r.choices).sum::<u64>();
+        let p2_win_choices = p2_wins.iter().map(|r| r.choices).sum::<u64>();
+        p2_win_sum += p1_loss_choices * p2_win_choices;
+        p2_loss_choices = p2_losses.iter().map(|r| r.choices).sum::<u64>();
+
+        println!(
+            "{} p1 w{}/l{} p2 w{}/l{} p1 wins {} / p2 wins {}",
+            i,
+            p1_win_choices,
+            p1_loss_choices,
+            p2_win_choices,
+            p2_loss_choices,
+            p1_win_sum,
+            p2_win_sum
+        );
+    }
+
+    (p1_win_sum / 27, p2_win_sum / 27)
 }
-
-/*
-sum combinations
-3 	1
-4 	3
-5 	6
-6 	7
-7 	6
-8 	3
-9 	1
------
-    27
-*/
