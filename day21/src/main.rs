@@ -109,7 +109,7 @@ fn quantum_rolls(state: &PlayerState, out: &mut Vec<PlayerState>) {
     );
 }
 
-fn win_table(start: u32, first: bool) -> HashMap<i32, (Vec<PlayerState>, Vec<PlayerState>)> {
+fn win_table(start: u32) -> HashMap<i32, (Vec<PlayerState>, Vec<PlayerState>)> {
     let mut table = HashMap::new();
     let mut workqueue = vec![PlayerState {
         pos: start,
@@ -145,8 +145,8 @@ fn win_table(start: u32, first: bool) -> HashMap<i32, (Vec<PlayerState>, Vec<Pla
     table
 }
 fn quantum_game(player1_pos: u32, player2_pos: u32) -> (u64, u64) {
-    let p1_results = win_table(player1_pos, true);
-    let p2_results = win_table(player2_pos, false);
+    let p1_results = win_table(player1_pos);
+    let p2_results = win_table(player2_pos);
     let mut p1_win_sum = 0;
     let mut p2_win_sum = 0;
 
