@@ -36,20 +36,22 @@ fn deterministic_game(mut player1_pos: u32, mut player2_pos: u32) {
         let rolls = (0..3).map(|i| die.roll()).collect_vec();
         player1_pos = (player1_pos + rolls.iter().sum::<u32>()) % 10;
         player1_score += player1_pos + 1;
-        println!(
+/*        println!(
             "player 1 rolled {rolls:?} and moves to {} for a score of {player1_score}",
             player1_pos + 1
         );
+*/
         if player1_score >= 1000 {
             break;
         }
         let rolls = (0..3).map(|i| die.roll()).collect_vec();
         player2_pos = (player2_pos + rolls.iter().sum::<u32>()) % 10;
         player2_score += player2_pos + 1;
-        println!(
+/*        println!(
             "player 2 rolled {rolls:?} and moves to {} for a score of {player2_score}",
             player2_pos + 1
         );
+*/
     }
     println!(
         "product: {}",
