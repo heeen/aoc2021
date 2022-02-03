@@ -1,11 +1,7 @@
 use itertools::Itertools;
-use std::{
-    error::Error,
-    fs,
-    ops::{Range, RangeInclusive},
-};
+use std::{error::Error, fs, ops::RangeInclusive};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 struct Range3 {
     x: RangeInclusive<i32>,
     y: RangeInclusive<i32>,
@@ -19,11 +15,15 @@ impl Range3 {
         let (ymin, ymax) = ystr[2..].split_once("..").unwrap();
         let (zmin, zmax) = zstr[2..].split_once("..").unwrap();
 
-        println!("{} {}", xmin, xmax);
         let x = xmin.parse().unwrap()..=xmax.parse().unwrap();
-        let y = ymin.parse::<i32>().unwrap()..=ymax.parse::<i32>().unwrap();
-        let z = zmin.parse::<i32>().unwrap()..=zmax.parse::<i32>().unwrap();
+        let y = ymin.parse().unwrap()..=ymax.parse().unwrap();
+        let z = zmin.parse().unwrap()..=zmax.parse().unwrap();
         Self { x, y, z }
+    }
+    fn count(&self) -> usize {
+        (self.x.end() - self.x.start() + 1) as usize
+            * (self.y.end() - self.y.start() + 1) as usize
+            * (self.z.end() - self.z.start() + 1) as usize
     }
 }
 
@@ -34,7 +34,6 @@ where
     fn intersection(&self, other: &Self) -> Option<Self>;
     fn contains_range(&self, other: &Self) -> bool;
     fn except(&self, other: &Self) -> Vec<Self>;
-
 }
 
 impl RangeBooleanOps for Range3 {
@@ -57,7 +56,32 @@ impl RangeBooleanOps for Range3 {
 
     fn except(&self, other: &Self) -> Vec<Self> {
         if let Some(intersection) = self.intersection(other) {
-            vec![]
+            let mut result = Vec::new();
+            let ex_x = self.x.except(&other.x);
+            for r in ex_x {
+                result.push(Range3 {
+                    x: r,
+                    y: self.y.clone(),
+                    z: self.z.clone(),
+                });
+            }
+            let ex_y = self.y.except(&other.y);
+            for r in ex_y {
+                result.push(Range3 {
+                    x: intersection.x.clone(),
+                    y: r,
+                    z: self.z.clone(),
+                })
+            }
+            let ex_z = self.z.except(&other.z);
+            for r in ex_z {
+                result.push(Range3 {
+                    x: intersection.x.clone(),
+                    y: intersection.y.clone(),
+                    z: r,
+                })
+            }
+            result
         } else {
             vec![self.clone()]
         }
@@ -77,18 +101,18 @@ impl RangeBooleanOps for RangeInclusive<i32> {
         self.start() <= other.start() && self.end() >= other.end()
     }
 
-    fn except(&self, other: &Self)-> Vec<Self> {
+    fn except(&self, other: &Self) -> Vec<Self> {
         if let Some(intersection) = self.intersection(other) {
             if intersection == *self {
                 vec![]
             } else if intersection.end() == self.end() {
-                vec![*self.start()..=*intersection.start()]
+                vec![*self.start()..=intersection.start() - 1]
             } else if intersection.start() == self.start() {
-                vec![*intersection.end()..=*self.end()]
+                vec![intersection.end() + 1..=*self.end()]
             } else {
                 vec![
                     *self.start()..=intersection.start() - 1,
-                    intersection.end()+1..=*self.end()
+                    intersection.end() + 1..=*self.end(),
                 ]
             }
         } else {
@@ -144,6 +168,77 @@ fn except_test() {
     println!("{:?}", e);
 }
 
+#[test]
+fn except3_test() {
+    let r1 = Range3 {
+        x: 0..=2,
+        y: 0..=2,
+        z: 0..=2,
+    };
+    println!("r1 {:?} count {}", r1, r1.count());
+    let candidates = vec![
+        Range3 {
+            x: 1..=1,
+            y: 1..=1,
+            z: 1..=1,
+        },
+        r1.clone(),
+        Range3 {
+            x: 0..=2,
+            y: 1..=1,
+            z: 1..=1,
+        },
+        Range3 {
+            x: 0..=2,
+            y: 1..=1,
+            z: 0..=2,
+        },
+        Range3 {
+            x: -1..=1,
+            y: -1..=1,
+            z: -1..=1,
+        },
+        Range3 {
+            x: -2..=-1,
+            y: -2..=-1,
+            z: -2..=-1,
+        },
+        Range3 {
+            x: -2..=-1,
+            y: 0..=2,
+            z: 0..=2,
+        },
+    ];
+
+    for r2 in candidates {
+        println!("testing candidate {:?} count {}", r2, r2.count());
+        let ex = r1.except(&r2);
+        let ex_count = ex.iter().map(|r| r.count()).sum::<usize>();
+        if let Some(is) = r1.intersection(&r2) {
+            println!("  intersection {:?} count {}", is, is.count());
+            assert!(r1.contains_range(&is));
+            assert!(r2.contains_range(&is));
+
+            for (i, ex_sub) in ex.iter().enumerate() {
+                println!(
+                    "    checking except part {:?} {} with {:?}",
+                    ex_sub,
+                    ex_sub.count(),
+                    is
+                );
+                for j in 0..i {
+                    assert!(ex_sub.intersection(&ex[j]).is_none());
+                }
+                assert!(ex_sub.intersection(&is).is_none());
+            }
+            assert!(ex_count <= r1.count());
+            assert_eq!(ex_count, r1.count() - is.count());
+        } else {
+            assert_eq!(ex_count, r1.count());
+            assert!(ex[0] == r1);
+        }
+    }
+}
 
 fn main() -> Result<(), Box<dyn Error>> {
     let content = fs::read_to_string("day22/input_simple")?
@@ -159,19 +254,47 @@ fn main() -> Result<(), Box<dyn Error>> {
         z: -50..=50,
     };
 
-//    let mut on_ranges = Vec::new();
-    for (op,r) in content
-        .iter()
-        .filter_map(|(op, r)| match part1_limit.intersection(&r) {
-            None => None,
-            Some(i) => Some((*op, i)),
-        })
-    {
-        if op {
-        }else {
-
-        }
-        println!("{:?} {:?}", op, r);
-    }
+    let p1 = operate(
+        content
+            .iter()
+            .filter_map(|(op, r)| match part1_limit.intersection(&r) {
+                None => None,
+                Some(i) => Some((*op, i)),
+            }),
+    );
+    let p1_count = p1.iter().map(|r| r.count()).sum::<usize>();
+    println!("{:?}", p1_count);
+    let p2 = operate(content);
+    let p2_count = p2.iter().map(|r| r.count()).sum::<usize>();
+    println!("{:?}", p2_count);
     Ok(())
+}
+
+fn operate<I>(ops: I) -> Vec<Range3>
+where
+    I: IntoIterator<Item = (bool, Range3)>,
+{
+    let mut on_ranges = Vec::new();
+    for (op, r) in ops {
+        if op {
+            let mut remainder = vec![r];
+            for already_on in &on_ranges {
+                let mut next = Vec::new();
+                for rem in remainder {
+                    next.append(&mut rem.except(&already_on));
+                }
+                remainder = next;
+            }
+            on_ranges.append(&mut remainder);
+        } else {
+            let mut still_on = Vec::new();
+            for on in on_ranges {
+                still_on.append(&mut on.except(&r));
+            }
+
+            on_ranges = still_on;
+        }
+    }
+
+    on_ranges
 }
