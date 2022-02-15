@@ -1,5 +1,5 @@
 use enum_iterator::IntoEnumIterator;
-use std::{array::IntoIter, error::Error, fmt::Display, fs};
+use std::{error::Error, fmt::Display, fs};
 
 use itertools::Itertools;
 
@@ -74,16 +74,22 @@ struct State {
 
 impl Display for State {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for spot in self.spots {
+        for (i, spot) in self.spots.iter().enumerate() {
+            match i {
+                2 | 3 | 4 | 5 => {
+                    write!(f, " ")?;
+                }
+                _ => (),
+            };
             match spot {
                 Some(PodType::Amber) => write!(f, "A"),
                 Some(PodType::Bronce) => write!(f, "B"),
                 Some(PodType::Copper) => write!(f, "C"),
                 Some(PodType::Desert) => write!(f, "D"),
                 None => write!(f, "."),
-            };
+            }?;
         }
-        write!(f, "\n  ");
+        write!(f, "\n  ")?;
         for room in self.rooms {
             match room {
                 Room::Bottom(_) | Room::Empty => write!(f, ". "),
@@ -91,9 +97,9 @@ impl Display for State {
                 Room::Two(_, PodType::Bronce) => write!(f, "B "),
                 Room::Two(_, PodType::Copper) => write!(f, "C "),
                 Room::Two(_, PodType::Desert) => write!(f, "D "),
-            };
+            }?;
         }
-        write!(f, "\n  ");
+        write!(f, "\n  ")?;
         for room in self.rooms {
             match room {
                 Room::Bottom(PodType::Amber) | Room::Two(PodType::Amber, _) => write!(f, "A "),
@@ -101,7 +107,7 @@ impl Display for State {
                 Room::Bottom(PodType::Copper) | Room::Two(PodType::Copper, _) => write!(f, "C "),
                 Room::Bottom(PodType::Desert) | Room::Two(PodType::Desert, _) => write!(f, "D "),
                 Room::Empty => write!(f, "."),
-            };
+            }?;
         }
         Ok(())
     }
@@ -126,27 +132,50 @@ impl State {
         }
     }
 
-    fn move_from_room(&mut self, room_type: PodType, direction: Direction) {
+    fn move_from_room(
+        &mut self,
+        room_type: PodType,
+        direction: Direction,
+    ) -> Result<&mut Self, ()> {
         let destinations = self.room_exit_destinations(room_type);
+        let candidate = self.room(room_type).move_out();
         let destination = match direction {
             Direction::Left => &mut self.spots[destinations.0],
             Direction::Right => &mut self.spots[destinations.1],
         };
-        let room = self.room(room_type);
-        if let Some((pod, cost)) = room.move_out() {
+        if let Some((pod, cost)) = candidate {
             *destination = Some(pod);
             self.cost += cost * pod.move_cost();
+            Ok(self)
+        } else {
+            Err(())
         }
     }
 
-    fn move_from_spot(&mut self, from_index: usize, direction: Direction) {
-        let spot = &mut self.spots[from_index];
+    fn move_from_spot(&mut self, from_index: usize, direction: Direction) -> Result<&mut Self, ()> {
+        let pod = self.spots[from_index].take();
         let to = match direction {
             Direction::Left => &mut self.spots[from_index - 1],
             Direction::Right => &mut self.spots[from_index + 1],
         };
-        *to = *spot;
-        *spot = None;
+        match (pod, to) {
+            (Some(podtype), None) => {
+                *to = pod;
+                self.cost += podtype.move_cost();
+                Ok(self)
+            }
+            _ => Err(()),
+        }
+    }
+
+    fn generate_moves(&self) -> Vec<Self> {
+        [ PodType::Amber,
+        PodType::Bronce,
+        PodType::Copper,
+        PodType::Desert
+        ].iter().filter_map(
+            |t| self.clone().move_from_room(*t, Direction::Left).ok()
+        ).collect()
     }
 
     fn from_data(data: Vec<Vec<char>>) -> Self {
@@ -168,10 +197,10 @@ impl State {
         println!("pods: {:?}", pods);
         State {
             rooms: [
-                Room::Two(pods[0], pods[4]),
-                Room::Two(pods[1], pods[5]),
-                Room::Two(pods[2], pods[6]),
-                Room::Two(pods[3], pods[7]),
+                Room::Two(pods[4], pods[0]),
+                Room::Two(pods[5], pods[1]),
+                Room::Two(pods[6], pods[2]),
+                Room::Two(pods[7], pods[3]),
             ],
             spots: [None; 7],
             cost: 0,
@@ -186,9 +215,6 @@ impl State {
             _ => None,
         }
     }
-    fn possible_states(&self) -> Vec<State> {
-        vec![]
-    }
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -197,11 +223,15 @@ fn main() -> Result<(), Box<dyn Error>> {
         .map(|s| s.chars().collect_vec())
         .collect_vec();
     let initial = State::from_data(content);
-    let mut work_queue = initial.possible_states();
+
+    println!("initial:\n{initial}");
+
+    let mut work_queue = initial.generate_moves();
+
     while let Some(w) = work_queue.pop() {
         println!("{}", w);
-        let mut new = w.possible_states();
-        work_queue.append(&mut new);
+        //        let mut new = w.generate_moves();
+        //        work_queue.append(&mut new);
     }
     Ok(())
 }
