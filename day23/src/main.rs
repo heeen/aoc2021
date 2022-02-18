@@ -2,7 +2,7 @@ use enum_iterator::IntoEnumIterator;
 use itertools::Itertools;
 use std::hash::{Hash, Hasher};
 use std::{
-    collections::{BinaryHeap, HashMap, HashSet},
+    collections::{BinaryHeap, HashMap},
     error::Error,
     fmt::Display,
     fs,
@@ -16,11 +16,32 @@ enum PodType {
     Desert,
 }
 
+impl PodType {
+    fn move_cost(&self) -> u64 {
+        match self {
+            PodType::Amber => 1,
+            PodType::Bronce => 10,
+            PodType::Copper => 100,
+            PodType::Desert => 1000,
+        }
+    }
+    fn room_index(&self) -> usize {
+        match self {
+            PodType::Amber => 0,
+            PodType::Bronce => 1,
+            PodType::Copper => 2,
+            PodType::Desert => 3,
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Clone, Copy, Hash)]
 enum Room {
     Empty,
     Bottom(PodType),
-    BottomTop(PodType, PodType),
+    BottomSecond(PodType, PodType),
+    BottomSecondThird(PodType, PodType, PodType),
+    Full(PodType, PodType, PodType, PodType),
 }
 
 impl Room {
@@ -29,11 +50,19 @@ impl Room {
             Room::Empty => None,
             Room::Bottom(pod) => {
                 *self = Room::Empty;
-                Some((pod, 2))
+                Some((pod, 4))
             }
-            Room::BottomTop(bottom, top) => {
+            Room::BottomSecond(bottom, top) => {
                 *self = Room::Bottom(bottom);
-                Some((top, 1))
+                Some((top, 3))
+            }
+            Room::BottomSecondThird(bottom, second, third) => {
+                *self = Room::BottomSecond(bottom, second);
+                Some((third, 2))
+            }
+            Room::Full(bottom, second, third, fourth) => {
+                *self = Room::BottomSecondThird(bottom, second, third);
+                Some((fourth, 1))
             }
         }
     }
@@ -42,13 +71,22 @@ impl Room {
         match self {
             Room::Empty => {
                 *self = Room::Bottom(pod);
-                Some(2)
+                Some(4)
             }
             Room::Bottom(bottom) => {
-                *self = Room::BottomTop(*bottom, pod);
+                *self = Room::BottomSecond(*bottom, pod);
+                Some(3)
+            }
+            Room::BottomSecond(bottom, second) => {
+                *self = Room::BottomSecondThird(*bottom, *second, pod);
+                Some(2)
+            }
+
+            Room::BottomSecondThird(bottom, second, third) => {
+                *self = Room::Full(*bottom, *second, *third, pod);
                 Some(1)
             }
-            Room::BottomTop(_, _) => None,
+            Room::Full(_, _, _, _) => None,
         }
     }
 
@@ -56,7 +94,19 @@ impl Room {
         match self {
             Room::Empty => 0,
             Room::Bottom(_) => 1,
-            Room::BottomTop(_, _) => 2,
+            Room::BottomSecond(_, _) => 2,
+            Room::BottomSecondThird(_, _, _) => 3,
+            Room::Full(_, _, _, _) => 4,
+        }
+    }
+
+    fn array(&self) -> [Option<PodType>; 4] {
+        match *self {
+            Room::Empty => [None, None, None, None],
+            Room::Bottom(bot) => [None, None, None, Some(bot)],
+            Room::BottomSecond(bot, sec) => [None, None, Some(sec), Some(bot)],
+            Room::BottomSecondThird(bot, sec, thrd) => [None, Some(thrd), Some(sec), Some(bot)],
+            Room::Full(bot, sec, thrd, top) => [Some(top), Some(thrd), Some(sec), Some(bot)],
         }
     }
 }
@@ -66,12 +116,11 @@ struct State {
     rooms: [Room; 4],
     spots: [Option<PodType>; 11],
     cost: u64,
-    estimation: u64,
 }
 
 impl Display for State {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for (i, spot) in self.spots.iter().enumerate() {
+        for spot in self.spots {
             match spot {
                 Some(PodType::Amber) => write!(f, "A"),
                 Some(PodType::Bronce) => write!(f, "B"),
@@ -81,34 +130,20 @@ impl Display for State {
             }?;
         }
         write!(f, "\n  ")?;
-        for room in self.rooms {
-            match room {
-                Room::Bottom(_) | Room::Empty => write!(f, ". "),
-                Room::BottomTop(_, PodType::Amber) => write!(f, "A "),
-                Room::BottomTop(_, PodType::Bronce) => write!(f, "B "),
-                Room::BottomTop(_, PodType::Copper) => write!(f, "C "),
-                Room::BottomTop(_, PodType::Desert) => write!(f, "D "),
-            }?;
+
+        for i in 0..4 {
+            for room in self.rooms {
+                match room.array()[i] {
+                    Some(PodType::Amber) => write!(f, "A "),
+                    Some(PodType::Bronce) => write!(f, "B "),
+                    Some(PodType::Copper) => write!(f, "C "),
+                    Some(PodType::Desert) => write!(f, "D "),
+                    None => write!(f, ". "),
+                }?;
+            }
+            write!(f, "\n  ")?;
         }
-        write!(f, "\n  ")?;
-        for room in self.rooms {
-            match room {
-                Room::Bottom(PodType::Amber) | Room::BottomTop(PodType::Amber, _) => {
-                    write!(f, "A ")
-                }
-                Room::Bottom(PodType::Bronce) | Room::BottomTop(PodType::Bronce, _) => {
-                    write!(f, "B ")
-                }
-                Room::Bottom(PodType::Copper) | Room::BottomTop(PodType::Copper, _) => {
-                    write!(f, "C ")
-                }
-                Room::Bottom(PodType::Desert) | Room::BottomTop(PodType::Desert, _) => {
-                    write!(f, "D ")
-                }
-                Room::Empty => write!(f, ". "),
-            }?;
-        }
-        writeln!(f, "cost {} estimation {}", self.cost, self.estimation)?;
+        writeln!(f, "cost {} ", self.cost)?;
         Ok(())
     }
 }
@@ -142,16 +177,21 @@ impl Hash for WorkQueueEntry {
 #[derive(Debug)]
 struct WorkQueueEntry {
     state: State,
+    via: Option<State>,
 }
 
 impl State {
-    fn room(&mut self, room: PodType) -> &mut Room {
+    fn room_mut(&mut self, room: PodType) -> &mut Room {
         &mut self.rooms[room.room_index()]
+    }
+
+    fn room(&self, room: PodType) -> Room {
+        self.rooms[room.room_index()]
     }
 
     fn path_clear_to_spot(&self, room: PodType, spot_index: usize) -> Option<u64> {
         let room_spot = 2 + 2 * room.room_index();
-        let (range,distance) = if spot_index < room_spot {
+        let (range, distance) = if spot_index < room_spot {
             (spot_index..room_spot, room_spot - spot_index)
         } else {
             (room_spot..spot_index + 1, spot_index - room_spot)
@@ -179,21 +219,27 @@ impl State {
     }
 
     fn move_from_room(&self, room_type: PodType, spot_index: usize) -> Result<Self, ()> {
-        let mut ret = self.clone();
-        let room = *ret.room(room_type);
+        let room = self.room(room_type);
 
-        if room == Room::Bottom(room_type) || room == Room::BottomTop(room_type, room_type) {
+        if room == Room::Bottom(room_type)
+            || room == Room::BottomSecond(room_type, room_type)
+            || room == Room::BottomSecondThird(room_type, room_type, room_type)
+            || room == Room::Full(room_type, room_type, room_type, room_type)
+        {
             return Err(());
         }
-        let path_cost = ret.path_clear_to_spot(room_type, spot_index);
+        let path_cost = self.path_clear_to_spot(room_type, spot_index);
         if path_cost.is_none() {
             return Err(());
         }
-        let candidate = ret.room(room_type).move_out();
+        let mut ret = self.clone();
+        let candidate = ret.room_mut(room_type).move_out();
 
         if let Some((pod, room_cost)) = candidate {
             ret.spots[spot_index] = Some(pod);
             ret.cost += (room_cost + path_cost.unwrap()) * pod.move_cost();
+            #[cfg(debug_assertions)]
+            ret.sanity_check();
             Ok(ret)
         } else {
             Err(())
@@ -205,20 +251,29 @@ impl State {
             return Err(());
         }
 
+        let room = self.room(room_type);
+        if room != Room::Empty
+            && room != Room::Bottom(room_type)
+            && room != Room::BottomSecond(room_type, room_type)
+            && room != Room::BottomSecondThird(room_type, room_type, room_type)
+        {
+            return Err(());
+        }
+
         let path_cost = self.path_clear_to_room(spot_index, room_type);
-        if (path_cost.is_none()) {
+        if path_cost.is_none() {
             return Err(());
         }
         let mut ret = self.clone();
-        let room_cost = ret.room(room_type).move_in(room_type);
-        match (room_cost) {
-            (Some(rcost)) => {
-                ret.spots[spot_index] = None;
-                ret.cost += (path_cost.unwrap() + rcost) * room_type.move_cost();
-                //ret.estimate();
-                Ok(ret)
-            }
-            _ => Err(()),
+        let room_cost = ret.room_mut(room_type).move_in(room_type);
+        if let Some(rcost) = room_cost {
+            ret.spots[spot_index] = None;
+            ret.cost += (path_cost.unwrap() + rcost) * room_type.move_cost();
+            #[cfg(debug_assertions)]
+            ret.sanity_check();
+            Ok(ret)
+        } else {
+            Err(())
         }
     }
 
@@ -259,67 +314,58 @@ impl State {
                 };
             }
         }
-        let mut ret = State {
-            estimation: 0,
+        State {
             rooms: [
-                Room::BottomTop(pods[4], pods[0]),
-                Room::BottomTop(pods[5], pods[1]),
-                Room::BottomTop(pods[6], pods[2]),
-                Room::BottomTop(pods[7], pods[3]),
+                Room::Full(pods[4], PodType::Desert, PodType::Desert, pods[0]),
+                Room::Full(pods[5], PodType::Bronce, PodType::Copper, pods[1]),
+                Room::Full(pods[6], PodType::Amber, PodType::Bronce, pods[2]),
+                Room::Full(pods[7], PodType::Copper, PodType::Amber, pods[3]),
             ],
             spots: [None; 11],
             cost: 0,
-        };
-        //ret.estimate();
-        ret
+        }
     }
 
     fn solved_state() -> Self {
         State {
             rooms: [
-                Room::BottomTop(PodType::Amber, PodType::Amber),
-                Room::BottomTop(PodType::Bronce, PodType::Bronce),
-                Room::BottomTop(PodType::Copper, PodType::Copper),
-                Room::BottomTop(PodType::Desert, PodType::Desert),
+                Room::Full(
+                    PodType::Amber,
+                    PodType::Amber,
+                    PodType::Amber,
+                    PodType::Amber,
+                ),
+                Room::Full(
+                    PodType::Bronce,
+                    PodType::Bronce,
+                    PodType::Bronce,
+                    PodType::Bronce,
+                ),
+                Room::Full(
+                    PodType::Copper,
+                    PodType::Copper,
+                    PodType::Copper,
+                    PodType::Copper,
+                ),
+                Room::Full(
+                    PodType::Desert,
+                    PodType::Desert,
+                    PodType::Desert,
+                    PodType::Desert,
+                ),
             ],
             spots: [None; 11],
             cost: 0,
-            estimation: 0,
         }
     }
-
-    fn estimate(&mut self) {
-        self.estimation = 0;
-
-        for (i, spot) in self.spots.iter().enumerate() {
-            if let Some(t) = spot {
-                let distance = 2 + (t.room_index() as i32 - i as i32).abs() as u64;
-                self.estimation += t.move_cost() * distance
-            }
-        }
-        for (i, room) in self.rooms.iter().enumerate() {
-            let room_type = PodType::from_index(i);
-            self.estimation += match room {
-                Room::Empty => 0,
-                Room::BottomTop(bot, top) if *bot == room_type && *top == room_type => 0,
-                Room::Bottom(bot) if *bot == room_type => 0,
-                Room::Bottom(bot) => {
-                    bot.move_cost() * (4 + (i as i32 - bot.room_index() as i32).abs()) as u64
-                }
-                Room::BottomTop(bot, top) if *bot == room_type => {
-                    top.move_cost() * (2 + (i as i32 - top.room_index() as i32).abs()) as u64
-                }
-                Room::BottomTop(bot, top) => {
-                    bot.move_cost() * (4 + (i as i32 - bot.room_index() as i32).abs()) as u64
-                        + top.move_cost() * (2 + (i as i32 - top.room_index() as i32).abs()) as u64
-                }
-            }
-        }
-    }
+    
+    #[cfg(debug_assertions)]
     fn sanity_check(&self) {
         let spots = self.spots.iter().filter_map(|s| s.as_ref()).count();
         let rooms = self.rooms.iter().map(|r| r.count()).sum::<usize>();
-        assert_eq!(8, spots + rooms);
+        if spots + rooms != 16 {
+            panic!("{spots}+{rooms} != 16\n{self}");
+        }
     }
 }
 
@@ -332,74 +378,99 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     println!("initial:\n{initial}");
 
-    let mut known_costs = HashMap::new();
+    let mut known_costs: HashMap<WorkQueueEntry, (u64, Option<State>)> = HashMap::new();
     let mut work_queue = BinaryHeap::new();
 
     work_queue.push(WorkQueueEntry {
         state: initial.clone(),
+        via: None,
     });
-    //    known_costs.insert(WorkQueueEntry { state: initial }, 0);
 
-    while let Some(w) = work_queue.pop() {
-        let known_cost = known_costs.get(&w);
-        let w = w.state;
-        if known_cost.is_none() || known_cost.unwrap() > &w.cost {
-//            println!("popped:\n{} {:?}", w, known_cost);
-            known_costs.insert(WorkQueueEntry { state: w.clone() }, w.cost);
-            let new = w.generate_moves();
-//            println!("moves: {}", new.len());
+    while let Some(wqe) = work_queue.pop() {
+        let known_cost = known_costs.get(&wqe);
+        if known_cost.is_none() || known_cost.unwrap().0 > wqe.state.cost {
+            known_costs.insert(
+                WorkQueueEntry {
+                    state: wqe.state.clone(),
+                    via: None,
+                },
+                (wqe.state.cost, wqe.via),
+            );
+            let new = wqe.state.generate_moves();
             for state in new {
 //                println!("{state}");
-                work_queue.push(WorkQueueEntry { state });
+                work_queue.push(WorkQueueEntry {
+                    state,
+                    via: Some(wqe.state.clone()),
+                });
             }
-          //  break;
+//            break;
         }
     }
 
-    let solved = State::solved_state();
-    println!(
-        "------\n{}\ncost {:?}",
-        solved,
-        known_costs.get(&WorkQueueEntry {
-            state: solved.clone()
-        })
-    );
+    let mut state = State::solved_state();
+
+    loop {
+        if let Some((cost, via)) = known_costs.get(&WorkQueueEntry {
+            state: state.clone(),
+            via: None,
+        }) {
+            println!("------\n{}\ncost {:?}", state, cost);
+            if via.is_none() {
+                break;
+            }
+            state = via.as_ref().unwrap().clone();
+        } else {
+            println!("no solution found!");
+            break;
+        }
+    }
+
     Ok(())
 }
 
-impl PodType {
-    fn move_cost(&self) -> u64 {
-        match self {
-            PodType::Amber => 1,
-            PodType::Bronce => 10,
-            PodType::Copper => 100,
-            PodType::Desert => 1000,
-        }
-    }
-    fn room_index(&self) -> usize {
-        match self {
-            PodType::Amber => 0,
-            PodType::Bronce => 1,
-            PodType::Copper => 2,
-            PodType::Desert => 3,
-        }
-    }
-
-    fn from_index(i: usize) -> Self {
-        match i {
-            0 => PodType::Amber,
-            1 => PodType::Bronce,
-            2 => PodType::Copper,
-            3 => PodType::Desert,
-            _ => panic!("out of range"),
-        }
-    }
-    fn room_exit_destinations(&self) -> (usize, usize) {
-        match self {
-            PodType::Amber => (1, 2),
-            PodType::Bronce => (2, 3),
-            PodType::Copper => (3, 4),
-            PodType::Desert => (4, 5),
-        }
+#[test]
+fn test() {
+    let start = State {
+        rooms: [
+            Room::Full(
+                PodType::Amber,
+                PodType::Amber,
+                PodType::Amber,
+                PodType::Amber,
+            ),
+            Room::Full(
+                PodType::Bronce,
+                PodType::Bronce,
+                PodType::Bronce,
+                PodType::Bronce,
+            ),
+            Room::Full(
+                PodType::Copper,
+                PodType::Copper,
+                PodType::Copper,
+                PodType::Copper,
+            ),
+            Room::BottomSecondThird(PodType::Desert, PodType::Desert, PodType::Desert),
+        ],
+        spots: [
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            Some(PodType::Desert),
+        ],
+        cost: 0,
+    };
+        println!("start\n{start}\n----");
+    let moves = start.generate_moves();
+    for m in moves {
+        println!("{m}");
     }
 }
