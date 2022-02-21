@@ -33,13 +33,14 @@ struct Instruction {
 }
 
 #[derive(Debug)]
-enum Expression {
-    Constant(i32),
-    Add(Rc<Expression>, Rc<Expression>),
-    Mul(Rc<Expression>, Rc<Expression>),
-    Div(Rc<Expression>, Rc<Expression>),
-    Mod(Rc<Expression>, Rc<Expression>),
-    Eq(Rc<Expression>, Rc<Expression>),
+enum Expr {
+    Const(i32),
+    Add(Rc<Expr>, Rc<Expr>),
+    Mul(Rc<Expr>, Rc<Expr>),
+    Div(Rc<Expr>, Rc<Expr>),
+    Mod(Rc<Expr>, Rc<Expr>),
+    Eq(Rc<Expr>, Rc<Expr>),
+    Neq(Rc<Expr>, Rc<Expr>),
     InputDigit(i32),
 }
 
@@ -115,22 +116,22 @@ fn parse_op(line: &str, input_count: &mut usize) -> Instruction {
 
 #[derive(Debug)]
 struct RegisterFile {
-    w: Rc<Expression>,
-    x: Rc<Expression>,
-    y: Rc<Expression>,
-    z: Rc<Expression>,
+    w: Rc<Expr>,
+    x: Rc<Expr>,
+    y: Rc<Expr>,
+    z: Rc<Expr>,
 }
 impl RegisterFile {
     fn new() -> Self {
         RegisterFile {
-            x: Rc::new(Expression::Constant(0)),
-            y: Rc::new(Expression::Constant(0)),
-            z: Rc::new(Expression::Constant(0)),
-            w: Rc::new(Expression::Constant(0)),
+            x: Rc::new(Expr::Const(0)),
+            y: Rc::new(Expr::Const(0)),
+            z: Rc::new(Expr::Const(0)),
+            w: Rc::new(Expr::Const(0)),
         }
     }
 
-    fn register(&self, id: Register) -> Rc<Expression> {
+    fn register(&self, id: Register) -> Rc<Expr> {
         match id {
             Register::x => &self.x,
             Register::y => &self.y,
@@ -144,48 +145,53 @@ impl RegisterFile {
         let operand1 = self.register(instruction.register);
 
         let operand2 = match instruction.operand {
-            Operand::Constant(c) => Rc::new(Expression::Constant(c)),
+            Operand::Constant(c) => Rc::new(Expr::Const(c)),
             Operand::Register(reg_id) => self.register(reg_id),
         };
 
         let expression = match (instruction.opType, &*operand1, &*operand2) {
-            (OpType::Input, _, &Expression::Constant(digit)) => {
-                Rc::new(Expression::InputDigit(digit))
-            }
+            (OpType::Input, _, &Expr::Const(digit)) => Rc::new(Expr::InputDigit(digit)),
             (OpType::Input, _, _) => panic!("input needs digit operand"),
 
-            (OpType::Add, &Expression::Constant(0), _) => operand2,
-            (OpType::Add, _, &Expression::Constant(0)) => operand1,
-            (OpType::Add, &Expression::Constant(c1), &Expression::Constant(c2)) => {
-                Rc::new(Expression::Constant(c1 + c2))
+            (OpType::Add, &Expr::Const(0), _) => operand2,
+            (OpType::Add, _, &Expr::Const(0)) => operand1,
+            (OpType::Add, &Expr::Const(c1), &Expr::Const(c2)) => Rc::new(Expr::Const(c1 + c2)),
+            (OpType::Add, _, _) => Rc::new(Expr::Add(operand1, operand2)),
+
+            (OpType::Mul, &Expr::Const(0), _) => Rc::new(Expr::Const(0)),
+            (OpType::Mul, _, &Expr::Const(0)) => Rc::new(Expr::Const(0)),
+            
+            (OpType::Mul, &Expr::Const(1), _) => operand2,
+            (OpType::Mul, _, &Expr::Const(1)) => operand1,
+
+            (OpType::Mul, &Expr::Const(c1), &Expr::Const(c2)) => Rc::new(Expr::Const(c1 * c2)),
+            (OpType::Mul, _, _) => Rc::new(Expr::Mul(operand1, operand2)),
+
+            (OpType::Div, &Expr::Const(1), _) => operand2,
+            (OpType::Div, _, &Expr::Const(1)) => operand1,
+
+            (OpType::Div, &Expr::Const(c1), &Expr::Const(c2)) => Rc::new(Expr::Const(c1 / c2)),
+            (OpType::Div, _, _) => Rc::new(Expr::Div(operand1, operand2)),
+
+            (OpType::Mod, &Expr::Const(c1), &Expr::Const(c2)) => Rc::new(Expr::Const(c1 % c2)),
+            (OpType::Mod, _, _) => Rc::new(Expr::Mod(operand1, operand2)),
+
+            (OpType::Eq, &Expr::Eq(..), &Expr::Const(c)) if c > 1 || c < 0 => {
+                Rc::new(Expr::Const(0))
             }
-            (OpType::Add, _, _) => Rc::new(Expression::Add(operand1, operand2)),
-
-            (OpType::Mul, &Expression::Constant(0), _) => Rc::new(Expression::Constant(0)),
-            (OpType::Mul, _, &Expression::Constant(0)) => Rc::new(Expression::Constant(0)),
-
-            (OpType::Mul, &Expression::Constant(c1), &Expression::Constant(c2)) => {
-                Rc::new(Expression::Constant(c1 * c2))
+            (OpType::Eq, Expr::Eq(op1, op2), &Expr::Const(0)) => {
+                Rc::new(Expr::Neq(op1.clone(), op2.clone()))
             }
-            (OpType::Mul, _, _) => Rc::new(Expression::Mul(operand1, operand2)),
-
-            (OpType::Div, &Expression::Constant(1), _) => operand2,
-            (OpType::Div, _, &Expression::Constant(1)) => operand1,
-
-            (OpType::Div, &Expression::Constant(c1), &Expression::Constant(c2)) => {
-                Rc::new(Expression::Constant(c1 / c2))
+            (OpType::Eq, &Expr::Const(c1), &Expr::Const(c2)) => {
+                Rc::new(Expr::Const(if c1 == c2 { 1 } else { 0 }))
             }
-            (OpType::Div, _, _) => Rc::new(Expression::Div(operand1, operand2)),
-
-            (OpType::Mod, &Expression::Constant(c1), &Expression::Constant(c2)) => {
-                Rc::new(Expression::Constant(c1 % c2))
+            (OpType::Eq, &Expr::Const(c), Expr::InputDigit(_))
+            | (OpType::Eq, Expr::InputDigit(_), &Expr::Const(c))
+                if c == 0 || c > 9 =>
+            {
+                Rc::new(Expr::Const(0))
             }
-            (OpType::Mod, _, _) => Rc::new(Expression::Mod(operand1, operand2)),
-
-            (OpType::Eq, &Expression::Constant(c1), &Expression::Constant(c2)) => {
-                Rc::new(Expression::Constant(if c1 == c2 { 1 } else { 0 }))
-            }
-            (OpType::Eq, _, _) => Rc::new(Expression::Eq(operand1, operand2)),
+            (OpType::Eq, _, _) => Rc::new(Expr::Eq(operand1, operand2)),
         };
 
         let (x, y, z, w) = (self.x, self.y, self.z, self.w);
@@ -231,31 +237,34 @@ fn main() -> Result<(), Box<dyn Error>> {
     */
     let mut register_file = RegisterFile::new();
 
-    for (ic, instruction) in input.iter().take(260).enumerate() {
+    for (ic, instruction) in input.iter().take(36).enumerate() {
         register_file = register_file.apply(&instruction);
-/*        println!(
+        println!(
             "====={ic}: {instruction:?} =====\n\nw:{}\n\nx:{}\n\ny:{}\n\nz:{}\n",
             register_file.w, register_file.x, register_file.y, register_file.z
-        );*/
+        );
+        
     }
-    println!(
+/*    println!(
         "\n\nw:{}\n\nx:{}\n\ny:{}\n\nz:{}\n",
         register_file.w, register_file.x, register_file.y, register_file.z
-    );
+    );*/
+    println!( "z:{}\n", register_file.z);
 
     Ok(())
 }
 
-impl Display for Expression {
+impl Display for Expr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Expression::Constant(c) => write!(f, "{c}"),
-            Expression::Add(e0, e1) => write!(f, "({} + {})", e0, e1),
-            Expression::Mul(e0, e1) => write!(f, "{} * {}", e0, e1),
-            Expression::Div(e0, e1) => write!(f, "{} / {}", e0, e1),
-            Expression::Mod(e0, e1) => write!(f, "{} % {}", e0, e1),
-            Expression::Eq(e0, e1) => write!(f, "({} == {} ? 1 : 0)", e0, e1),
-            Expression::InputDigit(e0) => write!(f, "$I{}", e0),
+            Expr::Const(c) => write!(f, "{c}"),
+            Expr::Add(e0, e1) => write!(f, "({} + {})", e0, e1),
+            Expr::Mul(e0, e1) => write!(f, "({} * {})", e0, e1),
+            Expr::Div(e0, e1) => write!(f, "({} / {})", e0, e1),
+            Expr::Mod(e0, e1) => write!(f, "({} % {})", e0, e1),
+            Expr::Eq(e0, e1) => write!(f, "({} == {} ? 1 : 0)", e0, e1),
+            Expr::InputDigit(e0) => write!(f, "$I{}", e0),
+            Expr::Neq(e0, e1) => write!(f, "({} != {} ? 1 : 0)", e0, e1),
         }
     }
 }

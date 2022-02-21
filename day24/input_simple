@@ -1,0 +1,10 @@
+inp w
+inp x
+inp y
+inp z
+mul w 10
+mul x 20
+mul y 30
+mul z 40
+add w x
+add x w
