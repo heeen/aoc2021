@@ -1,5 +1,5 @@
 use itertools::Itertools;
-use std::{error::Error, fmt::Display, fs, mem, rc::Rc};
+use std::{error::Error, fmt::Display, fs, mem, ops::RangeInclusive, rc::Rc};
 
 #[derive(Debug, Copy, Clone)]
 enum Register {
@@ -42,6 +42,39 @@ enum Expr {
     Eq(Rc<Expr>, Rc<Expr>),
     Neq(Rc<Expr>, Rc<Expr>),
     InputDigit(i32),
+}
+
+impl Expr {
+    fn range(&self) -> RangeInclusive<i32> {
+        match self {
+            Expr::Const(c) => *c..=*c,
+            Expr::Add(operand1, operand2) => {
+                let r1 = operand1.range();
+                let r2 = operand2.range();
+                r1.start() + r2.start()..=r1.end() + r2.end()
+            }
+            Expr::Mul(operand1, operand2) => {
+                let r1 = operand1.range();
+                let r2 = operand2.range();
+                r1.start() * r2.start()..=r1.end() * r2.end()
+            }
+            Expr::Div(operand1, operand2) => {
+                let r1 = operand1.range();
+                let r2 = operand2.range();
+                r1.start() / r2.start()..=r1.end() / r2.end()
+            }
+            Expr::Mod(op1, m) => 0..=*m.range().end().min(op1.range().end()),
+            Expr::Eq(_, _) => 0..=1,
+            Expr::Neq(_, _) => 0..=1,
+            Expr::InputDigit(_) => 1..=9,
+        }
+    }
+    fn is_const(&self) -> bool {
+        match self {
+            Expr::Const(_) => true,
+            _ => false,
+        }
+    }
 }
 
 impl Register {
@@ -142,12 +175,28 @@ impl RegisterFile {
     }
 
     fn apply(self, instruction: &Instruction) -> Self {
-        let operand1 = self.register(instruction.register);
+        let mut operand1 = self.register(instruction.register);
 
-        let operand2 = match instruction.operand {
+        let mut operand2 = match instruction.operand {
             Operand::Constant(c) => Rc::new(Expr::Const(c)),
             Operand::Register(reg_id) => self.register(reg_id),
         };
+
+        if !operand1.is_const() && operand1.range().start() == operand1.range().end() {
+            println!(
+                "Op1 Expresion {operand1} singular range {:?}",
+                operand1.range()
+            );
+            operand1 = Rc::new(Expr::Const(*operand1.range().start()))
+        }
+
+        if !operand2.is_const() && operand2.range().start() == operand2.range().end() {
+            println!(
+                "Op2 Expresion {operand2} singular range {:?}",
+                operand2.range()
+            );
+            operand2 = Rc::new(Expr::Const(*operand2.range().start()))
+        }
 
         let expression = match (instruction.opType, &*operand1, &*operand2) {
             (OpType::Input, _, &Expr::Const(digit)) => Rc::new(Expr::InputDigit(digit)),
@@ -160,7 +209,7 @@ impl RegisterFile {
 
             (OpType::Mul, &Expr::Const(0), _) => Rc::new(Expr::Const(0)),
             (OpType::Mul, _, &Expr::Const(0)) => Rc::new(Expr::Const(0)),
-            
+
             (OpType::Mul, &Expr::Const(1), _) => operand2,
             (OpType::Mul, _, &Expr::Const(1)) => operand1,
 
@@ -185,13 +234,17 @@ impl RegisterFile {
             (OpType::Eq, &Expr::Const(c1), &Expr::Const(c2)) => {
                 Rc::new(Expr::Const(if c1 == c2 { 1 } else { 0 }))
             }
-            (OpType::Eq, &Expr::Const(c), Expr::InputDigit(_))
-            | (OpType::Eq, Expr::InputDigit(_), &Expr::Const(c))
-                if c == 0 || c > 9 =>
-            {
-                Rc::new(Expr::Const(0))
+            (OpType::Eq, _, _) => {
+                let r1 = operand1.range();
+                let r2 = operand2.range();
+
+                if r1.contains(r2.start()) || r1.contains(r2.end()) {
+                    Rc::new(Expr::Eq(operand1, operand2))
+                } else {
+                    println!("Comparison never true! {operand1} == {operand2}");
+                    Rc::new(Expr::Const(0))
+                }
             }
-            (OpType::Eq, _, _) => Rc::new(Expr::Eq(operand1, operand2)),
         };
 
         let (x, y, z, w) = (self.x, self.y, self.z, self.w);
@@ -237,34 +290,62 @@ fn main() -> Result<(), Box<dyn Error>> {
     */
     let mut register_file = RegisterFile::new();
 
-    for (ic, instruction) in input.iter().take(36).enumerate() {
+    for (ic, instruction) in input.iter().take(18 * 15).enumerate() {
         register_file = register_file.apply(&instruction);
-        println!(
-            "====={ic}: {instruction:?} =====\n\nw:{}\n\nx:{}\n\ny:{}\n\nz:{}\n",
+/*        println!(
+            "====={ic}: {instruction:?} =====\nw:{}\nx:{}\ny:{}\nz:{}\n",
             register_file.w, register_file.x, register_file.y, register_file.z
-        );
-        
+        );*/
     }
-/*    println!(
+    println!(
         "\n\nw:{}\n\nx:{}\n\ny:{}\n\nz:{}\n",
         register_file.w, register_file.x, register_file.y, register_file.z
-    );*/
-    println!( "z:{}\n", register_file.z);
+    );
 
     Ok(())
+}
+
+#[test]
+fn test_range() {
+    let digits = [1; 14];
+    let f1 = [1, 1, 1, 26, 1, 1, 1, 26, 26, 1, 26, 26, 26, 26];
+    let f2 = [13, 12, 11, 0, 15, 15, 10, -9, -9, 13, -14, -3, -2, -14];
+    let f3 = [14, 8, 5, 4, 10, 10, 16, 5, 5, 13, 6, 7, 13, 3];
+
+    let mut z = 0i64;
+    for i in 0..14 {
+        let x = z % 26 + f2[i];
+
+        println!("{i} {x} can be digit {}", f2[i] < 10 && 25 + f2[i] > 0);
+
+        z = z / f1[i];
+        let input = digits[i];
+        if input != x {
+            z = z * 26;
+            z += input + f3[i];
+        }
+        println!("  z: {z}");
+    }
 }
 
 impl Display for Expr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Expr::Const(c) => write!(f, "{c}"),
-            Expr::Add(e0, e1) => write!(f, "({} + {})", e0, e1),
-            Expr::Mul(e0, e1) => write!(f, "({} * {})", e0, e1),
-            Expr::Div(e0, e1) => write!(f, "({} / {})", e0, e1),
-            Expr::Mod(e0, e1) => write!(f, "({} % {})", e0, e1),
-            Expr::Eq(e0, e1) => write!(f, "({} == {} ? 1 : 0)", e0, e1),
+            Expr::Add(e0, e1) => write!(f, " +({} + {})", e0, e1),
+            Expr::Mul(e0, e1) => write!(f, " *({} * {})", e0, e1),
+            Expr::Div(e0, e1) => write!(f, " /({} / {})", e0, e1),
+            Expr::Mod(e0, e1) => write!(f, " %({} % {})", e0, e1),
+            Expr::Eq(e0, e1) => write!(f, " eq({} == {} ? 1 : 0)", e0, e1),
             Expr::InputDigit(e0) => write!(f, "$I{}", e0),
-            Expr::Neq(e0, e1) => write!(f, "({} != {} ? 1 : 0)", e0, e1),
+            Expr::Neq(e0, e1) => write!(f, "ne({} != {} ? 1 : 0)", e0, e1),
+        }?;
+        match self {
+            Expr::Const(_) => Ok(()),
+            _ => {
+                let r = self.range();
+                write!(f, "<{}..{}>", r.start(), r.end())
+            }
         }
     }
 }
