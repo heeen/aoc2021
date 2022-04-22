@@ -1,116 +1,97 @@
 
-inp w    inp w    inp w    inp w    inp w    inp w      inp w     inp w    inp w    inp w    inp w     inp w    inp w     inp w
 
-x = z % 26 + C
-
-div z 1  div z 1  div z 1  div z 26 div z 1  div z 26   div z 1   div z 26 div z 1  div z 1  div z 26  div z 26 div z 26  div z 26
-                           z/=26             z/=26                z/=26                      z/=26     z/=26    z/=26     z/=26
-                           z=0      z=0
-add x 13 add x 12 add x 11 add x 0  add x 15 add x -13  add x 10  add x -9 add x 11 add x 13 add x -14 add x -3 add x -2  add x -14
-x inclusive:
-13..38   12..37   11..36   0        15..40   -13..12    10..35    -9..16   11..36   13..38   -14..11   -3..22   -2..23    -14..11
-
-eql x w  eql x w  eql x w  eql x w  eql x w  eql x w    eql x w   eql x w  eql x w  eql x w  eql x w   eql x w  eql x w   eql x w
-never    never    never    never    never    1..9       never     1..9     never    never    1..9      1..9     1..9      1..9
-eql x 0  eql x 0  eql x 0  eql x 0  eql x 0  eql x 0    eql x 0   eql x 0  eql x 0  eql x 0  eql x 0   eql x 0  eql x 0   eql x 0
-always   always   always   always   always              always             always   always
-x:1      x:1      x:1      x:1      x:1      x:?        x:1       x:?      x:1      x:1      x:?       x:?      x:?       x:?      
-z *=26   z*=26    z*=26    z*=26    z*=26               z*=26              z*=26    z*=26
-                           
-
-mul y 0  mul y 0  mul y 0  mul y 0  mul y 0  mul y 0    mul y 0   mul y 0  mul y 0  mul y 0  mul y 0   mul y 0  mul y 0   mul y 0
-add y w  add y w  add y w  add y w  add y w  add y w    add y w   add y w  add y w  add y w  add y w   add y w  add y w   add y w
-add y 14 add y 8  add y 5  add y 4  add y 10 add y 13   add y 16  add y 5  add y 6  add y 13 add y 6   add y 7  add y 13  add y 3
-y = w + C
-14..23   8..17    5..14    4..13    10..19   13..22     16..25    5..14    6..15    13..22   6..15     7..16    13..22    3..12
-
-mul y x  mul y x  mul y x  mul y x  mul y x  mul y x    mul y x   mul y x  mul y x  mul y x  mul y x   mul y x  mul y x   mul y x
-y = w+14 y=       y=       y=        y=                  y=0                y=0      y=0
-
-
-add z y  add z y  add z y  add z y  add z y  add z y    add z y   add z y  add z y  add z y  add z y   add z y  add z y   add z y
-                                             z+=w+13              z+=w+5                     z+=w+6     z+=w+7  z+=w+13   z+=w+3
-
-z += (w + C) * x
-
-
-
-
-
-z==0 valid
-
-
-
-
-
-
-
-z:0
-
-inp w0       inp w1       inp w2       inp w3       inp w4       inp w5       inp w6       inp w7       inp w8       inp w9       inp w10      inp w11      inp w12      inp w13
-
-mul x 0      mul x 0      mul x 0      mul x 0      mul x 0      mul x 0      mul x 0      mul x 0      mul x 0      mul x 0      mul x 0      mul x 0      mul x 0      mul x 0
-add x z      add x z      add x z      add x z      add x z      add x z      add x z      add x z      add x z      add x z      add x z      add x z      add x z      add x z
-mod x 26     mod x 26     mod x 26     mod x 26     mod x 26     mod x 26     mod x 26     mod x 26     mod x 26     mod x 26     mod x 26     mod x 26     mod x 26     mod x 26
-
-x = z % 26
-x = 0
-
-div z 1      div z 1      div z 1      div z 26     div z 1      div z 1      div z 1      div z 26     div z 26     div z 1      div z 26     div z 26     div z 26     div z 26
-                                       z /= 26                                             z /= 26      z /= 26                   z/=26        z/=26        z/=26        z/=26
-
-
-
-add x 13     add x 12     add x 11     add x 0      add x 15     add x 15     add x 10     add x -9     add x -9     add x 13     add x -14    add x -3     add x -2     add x -14
-eql x w0      eql x w      eql x w      eql x w      eql x w      eql x w      eql x w      eql x w      eql x w      eql x w      eql x w      eql x w      eql x w      eql x w
-eql x 0      eql x 0      eql x 0      eql x 0      eql x 0      eql x 0      eql x 0      eql x 0      eql x 0      eql x 0      eql x 0      eql x 0      eql x 0      eql x 0
-
-x=(w!=z+13)
-(x:1)
-
-mul y 0      mul y 0      mul y 0      mul y 0      mul y 0      mul y 0      mul y 0      mul y 0      mul y 0      mul y 0      mul y 0      mul y 0      mul y 0      mul y 0
-add y 25     add y 25     add y 25     add y 25     add y 25     add y 25     add y 25     add y 25     add y 25     add y 25     add y 25     add y 25     add y 25     add y 25
-mul y x      mul y x      mul y x      mul y x      mul y x      mul y x      mul y x      mul y x      mul y x      mul y x      mul y x      mul y x      mul y x      mul y x
-add y 1      add y 1      add y 1      add y 1      add y 1      add y 1      add y 1      add y 1      add y 1      add y 1      add y 1      add y 1      add y 1      add y 1
-mul z y      mul z y      mul z y      mul z y      mul z y      mul z y      mul z y      mul z y      mul z y      mul z y      mul z y      mul z y      mul z y      mul z y
-
-
-if(w!=z+13) {
+if(i0 != zp % 26 + B) {
   z *= 26
+  z += i0 + 14
 }
-(z:0)
 
 
-mul y 0      mul y 0      mul y 0      mul y 0      mul y 0      mul y 0      mul y 0      mul y 0      mul y 0      mul y 0      mul y 0      mul y 0      mul y 0      mul y 0
-add y w      add y w      add y w      add y w      add y w      add y w      add y w      add y w      add y w      add y w      add y w      add y w      add y w      add y w
-add y 14     add y 8      add y 5      add y 4      add y 10     add y 10     add y 16     add y 5      add y 5      add y 13     add y 6      add y 7      add y 13     add y 3
-mul y x      mul y x      mul y x      mul y x      mul y x      mul y x      mul y x      mul y x      mul y x      mul y x      mul y x      mul y x      mul y x      mul y x
-add z y      add z y      add z y      add z y      add z y      add z y      add z y      add z y      add z y      add z y      add z y      add z y      add z y      add z y
+add x 13
+add y 14
 
-y=x*(w+14)
+add x 12
+add y 8
 
-if(w!=z+13)
-  z += I0+14
+add x 11
+add y 5
 
-z:I0+14
+add x 0
+add y 4
+
+add x 15
+add y 10
+
+add x -13
+add y 13
+
+add x 10
+add y 16
+
+add x -9
+add y 5
+
+add x 11
+add y 6
+
+add x 13
+add y 13
+
+add x -14
+add y 6
+
+add x -3
+add y 7
+
+add x -2
+add y 13
+
+add x -14
+add y 3
+
+
+CHECK OFFSET
+13    14      PUSH i0 + 14              i0+14
+12    8       PUSH i1 + 8               i0+14,i1+8
+11    5       PUSH i2 + 5               i0+14,i1+8,i2+5
+0     4       POP  i3 == i2 + 5 + 0     i0+14,i1+8
+15    10      PUSH i4 + 10              i0+14,i1+8,i4+10
+-13   13      POP  i5 == i4 + 10 - 13   i0+14,i1+8
+10    16      PUSH i6 + 16              i0+14,i1+8,i6+16
+-9    5       POP  i7 == i6 + 16 - 9    i0+14,i1+8
+11    6       PUSH i8 +6                i0+14,i1+8,i8+6
+13    13      PUSH i9 + 13              i0+14,i1+8,i8+6,i9+13
+-14   6       POP  i10 == i9 + 13 - 14  i0+14,i1+8,i8+6
+-3    7       POP  i11 == i8+6-3        i0+14,i1+8
+-2    13      POP  i12 == i1 + 8 - 2    i0+14
+-14   3       POP  i13 == i0 + 14 - 14
+
+
+
+
+              MAX MIN
+i0 = i13      9   1
+i1 = i12 - 6  3   1
+i2 = i3 - 5   4   1
+i3 = i2 + 5   9   6
+i4 = i5 + 3   9   4
+i5 = i4 - 3   6   1
+i6 = i7 - 7   2   1
+i7 = i6+7     9   8
+i8 = i11 - 3  6   1
+i9 = i10 + 1  9   2
+i10 = i9 - 1  8   1
+i11 = i8 + 3  9   4
+i12 = i1 + 6  9   7
+i13 = i0      9   1
 
 
 
 
 
+93492529998999 low
+93492729998999
 
-
-
-
-
-
-
-
-
-
-
-
-
+93499629698999
 
 
 

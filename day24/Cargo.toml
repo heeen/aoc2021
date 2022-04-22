@@ -7,3 +7,5 @@ edition = "2021"
 
 [dependencies]
 itertools = "0.10.1"
+colored = "2.0.0"
+termion = "1.5.6"
