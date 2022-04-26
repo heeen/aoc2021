@@ -59,7 +59,11 @@ impl ExprRange {
 
 impl Display for ExprRange {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "<{}..{}>", self.start, self.end)
+        if self.start == self.end - 1 {
+            write!(f, "[{}]", self.start)
+        } else {
+            write!(f, "[{}..{}]", self.start, self.end - 1)
+        }
     }
 }
 
@@ -71,10 +75,19 @@ struct ExprSolution {
 
 impl ExprSolution {
     fn constant(c: i64) -> ExpRef {
-        ExpRef::new(Self {
-            expr: Expr::Const(c),
-            range: Cell::new(ExprRange { start: c, end: c }),
-        })
+        let expr = Expr::Const(c);
+        let range = Cell::new(expr.range());
+        ExpRef::new(Self { expr, range })
+    }
+
+    fn add(op1: &Rc<ExprSolution>, op2: &Rc<ExprSolution>) -> ExpRef {
+        Expr::Add(op1.clone(), op2.clone()).into()
+    }
+    fn mul(op1: &Rc<ExprSolution>, op2: &Rc<ExprSolution>) -> ExpRef {
+        Expr::Mul(op1.clone(), op2.clone()).into()
+    }
+    fn div(op1: &Rc<ExprSolution>, op2: &Rc<ExprSolution>) -> ExpRef {
+        Expr::Div(op1.clone(), op2.clone()).into()
     }
 
     fn simplify(self) -> ExpRef {
@@ -85,8 +98,32 @@ impl ExprSolution {
                 (Expr::Const(c1), Expr::Const(c2)) => return Self::constant(c1 + c2),
                 (Expr::Add(a1, a2), Expr::Const(c2)) => {
                     if let Expr::Const(c1) = a2.expr {
-                        return Expr::Add(a1.clone(), Self::constant(c1 + c2)).into();
+                        return Self::add(a1, &Self::constant(c1 + c2)).into();
                     }
+                }
+                //(Expr::Eq(v1, v2, trueval, falseval), _) => {
+                (Expr::Eq(v1, v2, trueval, falseval), Expr::Const(_)) => {
+                    let ret = Expr::Eq(
+                        v1.clone(),
+                        v2.clone(),
+                        Self::add(trueval, op2).into(),
+                        Self::add(falseval, op2).into(),
+                    )
+                    .into();
+                    println!("pull add {op2} into eq\n    {self}\n    {ret}");
+                    return ret;
+                }
+                //(_, Expr::Eq(v1, v2, trueval, falseval)) => {
+                (Expr::Const(_), Expr::Eq(v1, v2, trueval, falseval)) => {
+                    let ret = Expr::Eq(
+                        v1.clone(),
+                        v2.clone(),
+                        Self::add(op1, trueval),
+                        Self::add(op1, falseval),
+                    )
+                    .into();
+                    println!("pull add {op1} into eq:    {self}\n    {ret}");
+                    return ret;
                 }
                 _ => {}
             },
@@ -98,10 +135,34 @@ impl ExprSolution {
                 (Expr::Const(c1), Expr::Const(c2)) => return Self::constant(c1 * c2),
                 (Expr::Mul(m1, m2), Expr::Const(c2)) => {
                     if let Expr::Const(c1) = m2.expr {
-                        let ret = Expr::Mul(m1.clone(), Self::constant(c1 * c2)).into();
+                        let ret = Self::mul(m1, &Self::constant(c1 * c2));
                         println!("folding mul {self} -> {ret}");
                         return ret;
                     }
+                }
+                //(Expr::Eq(v1, v2, trueval, falseval), _) => {
+                (Expr::Eq(v1, v2, trueval, falseval), Expr::Const(_)) => {
+                    let ret = Expr::Eq(
+                        v1.clone(),
+                        v2.clone(),
+                        Self::mul(trueval, op2),
+                        Self::mul(falseval, op2),
+                    )
+                    .into();
+                    println!("pull mul {op1} into eq {self} -> {ret}");
+                    return ret;
+                }
+                //(_, Expr::Eq(v1, v2, trueval, falseval)) => {
+                (Expr::Const(_), Expr::Eq(v1, v2, trueval, falseval)) => {
+                    let ret = Expr::Eq(
+                        v1.clone(),
+                        v2.clone(),
+                        Self::mul(op1, trueval),
+                        Self::mul(op1, falseval),
+                    )
+                    .into();
+                    println!("pull mul {op1} into eq {self} -> {ret}");
+                    return ret;
                 }
                 _ => {}
             },
@@ -115,7 +176,7 @@ impl ExprSolution {
                         if c1 == c2 {
                             return m1.clone();
                         } else {
-                            return Expr::Mul(m1.clone(), Self::constant(c1 / c2)).into();
+                            return Self::mul(m1, &Self::constant(c1 / c2));
                         }
                     }
                 }
@@ -127,18 +188,43 @@ impl ExprSolution {
                     return Expr::Const(0).into();
                 }
                 (_, &Expr::Const(divisor)) => {
-                    println!("div {divisor}");
+                    println!("XXX {op1} div {divisor}");
                     if let Expr::Add(a1, a2) = &op1.expr {
                         if let Expr::Mul(m1, m2) = &a1.expr {
                             if let Expr::Const(c2) = m2.expr {
                                 if divisor == c2 {
                                     if a2.range.get().end < c2 {
+                                        println!("XXX just {m1}");
                                         return m1.clone();
                                     }
                                 }
                             }
                         }
                     }
+                }
+                //                (Expr::Eq(v1, v2, trueval, falseval), _) => {
+                (Expr::Eq(v1, v2, trueval, falseval), Expr::Const(_)) => {
+                    let ret = Expr::Eq(
+                        v1.clone(),
+                        v2.clone(),
+                        Self::div(trueval, op2),
+                        Self::div(falseval, op2),
+                    )
+                    .into();
+                    println!("pull div {op1} into eq {self} -> {ret}");
+                    return ret;
+                }
+                // (_, Expr::Eq(v1, v2, trueval, falseval)) => {
+                (Expr::Const(_), Expr::Eq(v1, v2, trueval, falseval)) => {
+                    let ret = Expr::Eq(
+                        v1.clone(),
+                        v2.clone(),
+                        Self::div(op1, trueval),
+                        Self::div(op1, falseval),
+                    )
+                    .into();
+                    println!("pull div {op1} into eq {self} -> {ret}");
+                    return ret;
                 }
                 _ => {}
             },
@@ -147,7 +233,7 @@ impl ExprSolution {
                 (Expr::Const(0), _) => return Self::constant(0),
                 (_, Expr::Const(1)) => return Self::constant(1),
                 (Expr::Const(c1), Expr::Const(c2)) => return Self::constant(c1 % c2),
-                (_, &Expr::Const(modulus)) if op1.range.get().end < modulus => {
+                (_, &Expr::Const(modulus)) if op1.range.get().end <= modulus => {
                     println!(
                         "op1 {op1} range {} always smaller than modulus {modulus}, noop",
                         op1.range.get()
@@ -155,15 +241,18 @@ impl ExprSolution {
                     return op1.clone();
                 }
                 (_, &Expr::Const(modulus)) => {
-                    println!("mod {modulus}");
+                    println!("XXX {op1} {} mod {modulus} ", op1.range.get());
                     if let Expr::Add(a1, a2) = &op1.expr {
                         if let Expr::Mul(_, m2) = &a1.expr {
                             if let Expr::Const(c2) = m2.expr {
                                 if modulus == c2 {
                                     if a2.range.get().end < c2 {
+                                        println!("XXX just {a2}");
                                         return a2.clone();
                                     } else {
-                                        return Expr::Mod(a2.clone(), m2.clone()).into();
+                                        let ret = Expr::Mod(a2.clone(), m2.clone()).into();
+                                        println!("XXX just {ret}");
+                                        return ret;
                                     }
                                 }
                             }
@@ -172,20 +261,69 @@ impl ExprSolution {
                 }
                 _ => {}
             },
-            Expr::Eq(op1, op2) => {
+            Expr::Eq(op1, op2, trueval, falseval) => {
                 let r1 = op1.range.get();
                 let r2 = op2.range.get();
                 if !r1.overlaps(&r2) {
                     println!("Comparison never true! {op1} == {op2} -> 0");
-                    return Self::constant(0);
+                    return falseval.clone();
                 }
-            }
-            Expr::Neq(op1, op2) => {
-                let r1 = op1.range.get();
-                let r2 = op2.range.get();
-                if !r1.overlaps(&r2) {
-                    println!("Comparison always true! {op1} != {op2} -> 1");
-                    return Self::constant(1);
+
+                match (&op1.expr, &op2.expr) {
+                    (&Expr::Const(v1), &Expr::Const(v2)) => {
+                        if v1 == v2 {
+                            println!("{v1} == {v2} -> {trueval}");
+                            return trueval.clone();
+                        } else {
+                            println!("{v1} == {v2} -> {falseval}");
+                            return falseval.clone();
+                        }
+                    }
+                    (Expr::Eq(iop1, iop2, itrueval, ifalseval), &Expr::Const(0)) => {
+                        let ret = Expr::Eq(
+                            iop1.clone(),
+                            iop2.clone(),
+                            ifalseval.clone(),
+                            itrueval.clone(),
+                        )
+                        .into();
+                        println!("invert eq {self} -> {ret}");
+                        return ret;
+                    }
+                    (Expr::Add(a1, a2), Expr::InputDigit(_)) => {
+                        if let Expr::InputDigit(_) = a1.expr {
+                            if let Expr::Const(c) = a2.expr {
+                                println!("{self} input offset comparison can be true!");
+                                let r1 = a1.range.get();
+                                let r2 = op2.range.get();
+                                if c > 0 {
+                                    // a1 + 3 = o2
+                                    a1.range.set(ExprRange {
+                                        start: r1.start,
+                                        end: r2.end - c,
+                                    });
+                                    op2.range.set(ExprRange {
+                                        start: r1.start + c,
+                                        end: r2.end,
+                                    });
+                                } else {
+                                    // a1 -3 = op2
+                                    a1.range.set(ExprRange {
+                                        start: r1.start - c,
+                                        end: r1.end,
+                                    });
+                                    op2.range.set(ExprRange {
+                                        start: r2.start,
+                                        end: r2.end + c,
+                                    });
+                                }
+                                println!("==> {a1} + {c} = {op2} -> {trueval}");
+
+                                return trueval.clone();
+                            }
+                        }
+                    }
+                    (_, _) => return ExpRef::new(self),
                 }
             }
             _ => return ExpRef::new(self),
@@ -223,6 +361,7 @@ impl ExprSolution {
 
                     let min2 = irange.start - r1.end;
                     let max2 = irange.end - r1.start;
+                    println!("solve add {a1}\n+\n{a2}\n = {range}");
                     let mut solutions = Vec::new();
                     for i in min1..max1 {
                         let r1 = ExprRange {
@@ -237,12 +376,26 @@ impl ExprSolution {
                     };*/
                     solutions
                 }
-                Expr::Mul(_, _) => todo!(),
-                Expr::Div(_, _) => todo!(),
-                Expr::Mod(_, _) => todo!(),
-                Expr::Eq(_, _) => todo!(),
-                Expr::Neq(_, _) => todo!(),
-                Expr::InputDigit(_) => todo!(),
+                Expr::Mul(m1, m2) => {
+                    println!("solve mul {m1}*{m2}={range}");
+                    todo!()
+                }
+                Expr::Div(d1, d2) => {
+                    println!("solve div {d1}/{d2} = {range}");
+                    todo!()
+                }
+                Expr::Mod(m1, m2) => {
+                    println!("solve mod {m1}%{m2} = {range}");
+                    todo!()
+                }
+                Expr::Eq(v1, v2, t, f) => {
+                    println!("solve eq {v1}=={v2}?{t}:{f} = {range}");
+                    todo!()
+                }
+                Expr::InputDigit(d) => {
+                    println!("solve input {d} = {range}");
+                    todo!()
+                }
                 _ => vec![],
             }
         } else {
@@ -259,19 +412,18 @@ enum Expr {
     Mul(ExpRef, ExpRef),
     Div(ExpRef, ExpRef),
     Mod(ExpRef, ExpRef),
-    Eq(ExpRef, ExpRef),
-    Neq(ExpRef, ExpRef),
+    Eq(ExpRef, ExpRef, ExpRef, ExpRef),
     InputDigit(i64),
 }
 
 impl Expr {
     fn range(&self) -> ExprRange {
         let (start, end) = match self {
-            Expr::Const(c) => (*c, c + 1),
+            &Expr::Const(c) => (c, c + 1),
             Expr::Add(o1, o2) => {
                 let r1 = o1.range.get();
                 let r2 = o2.range.get();
-                (r1.start + r2.start, r1.end + r2.end)
+                (r1.start + r2.start, (r1.end + r2.end) - 1)
             }
             Expr::Mul(o1, o2) => {
                 let r1 = o1.range.get();
@@ -285,10 +437,13 @@ impl Expr {
             }
             Expr::Mod(o1, o2) => {
                 let r2 = o2.range.get();
-                (0, r2.end)
+                (0, r2.end - 1)
             }
-            Expr::Eq(_, _) => (0, 2),
-            Expr::Neq(_, _) => (0, 2),
+            Expr::Eq(_, _, trueval, falseval) => {
+                let r1 = trueval.range.get();
+                let r2 = falseval.range.get();
+                (r1.start.min(r2.start), r1.end.max(r2.end))
+            }
             Expr::InputDigit(_) => (1, 10),
         };
         ExprRange { start, end }
@@ -413,14 +568,9 @@ impl RegisterFile {
             (OpType::Mul, _, _) => Expr::Mul(ro1, ro2).into(),
             (OpType::Div, _, _) => Expr::Div(ro1, ro2).into(),
             (OpType::Mod, _, _) => Expr::Mod(ro1, ro2).into(),
-
-            (OpType::Eq, Expr::Eq(op1, op2), Expr::Const(0)) => {
-                Expr::Neq(op1.clone(), op2.clone()).into()
+            (OpType::Eq, _, _) => {
+                Expr::Eq(ro1, ro2, Expr::Const(1).into(), Expr::Const(0).into()).into()
             }
-            (OpType::Eq, Expr::Const(c1), Expr::Const(c2)) => {
-                Expr::Const(if c1 == c2 { 1 } else { 0 }).into()
-            }
-            (OpType::Eq, _, _) => Expr::Eq(ro1, ro2).into(),
         };
 
         let (x, y, z, w, inputs) = (self.x, self.y, self.z, self.w, self.inputs);
@@ -460,7 +610,7 @@ impl RegisterFile {
 
 fn main() -> Result<(), Box<dyn Error>> {
     let mut input_count = 0;
-    let input = fs::read_to_string("day24/input_simple2")?
+    let input = fs::read_to_string("day24/input")?
         .lines()
         .filter(|l| !l.is_empty())
         .map(|l| parse_op(l, &mut input_count))
@@ -479,90 +629,55 @@ fn main() -> Result<(), Box<dyn Error>> {
         register_file.w, register_file.x, register_file.y, register_file.z
     );
     for (i, input) in register_file.inputs.iter().enumerate() {
-        println!("input {i}: {input} {}", input.range.get());
+        println!("input {i}: {input}");
     }
 
-    let solutions = register_file.z.solve(ExprRange { start: 0, end: 1 });
-    print!("solutions: {}", solutions.len());
-    for s in solutions {
-        println!("solution: {s}");
-    }
+    println!(
+        "max number: {}",
+        register_file
+            .inputs
+            .iter()
+            .map(|i| (i.range.get().end - 1).to_string())
+            .collect::<String>()
+    );
+    println!(
+        "max number: {}",
+        register_file
+            .inputs
+            .iter()
+            .map(|i| (i.range.get().start).to_string())
+            .collect::<String>()
+    );
 
-    Ok(())
-}
-
-#[test]
-fn test_range() {
-    let r1: ExprRange = (0..=0).into();
-    assert!(r1.overlaps(&r1));
-    let r2 = ExprRange { start: 1, end: 2 };
-    assert!(!r1.overlaps(&r2));
-
-    let r1 = ExprRange { start: 0, end: 10 };
-    let r2 = ExprRange { start: 0, end: 1 };
-    let i = r1.intersection(&r2).unwrap();
-    assert_eq!(i, r2);
-    let r2 = ExprRange { start: -10, end: 1 };
-    let i = r1.intersection(&r2).unwrap();
-    assert_eq!(i, ExprRange { start: 0, end: 1 });
-    println!("{i}");
-}
-#[test]
-fn test_foo() {
-    let digits = [1; 14];
-    let f1 = [1, 1, 1, 26, 1, 1, 1, 26, 26, 1, 26, 26, 26, 26];
-    // z multiplied:   a  a  a
-    let f2 = [13, 12, 11, 0, 15, 15, 10, -9, -9, 13, -14, -3, -2, -14];
-    let f3 = [14, 8, 5, 4, 10, 10, 16, 5, 5, 13, 6, 7, 13, 3];
-
-    let mut z = 0i64;
-    for i in 0..14 {
-        let x = z % 26 + f2[i];
-
-        let range_min = f2[i].clamp(1, 9);
-        let range_max = (f2[i] + 25 + 9).clamp(1, 9);
-
-        println!(
-            "{i} {x} can be digit {} digit range {range_min}..={range_max}",
-            f2[i] < 10 && 25 + f2[i] > 0
-        );
-
-        z = z / f1[i];
-        let input = digits[i];
-        if input != x {
-            z = z * 26;
-            z += input + f3[i];
+    /*    let solutions = register_file.z.solve(ExprRange { start: 0, end: 1 });
+        print!("solutions: {}", solutions.len());
+        for s in solutions {
+            println!("solution: {s}");
         }
-        println!("  z: {z}");
-    }
-}
-#[test]
-fn test_solve() {
-    let expr: ExpRef = Expr::Add(Expr::InputDigit(0).into(), Expr::Const(5).into()).into();
-    println!("{expr}");
+    */
+    Ok(())
 }
 
 impl Display for ExprSolution {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self.expr {
             Expr::Const(c) => write!(f, "{c}"),
-            Expr::Add(e0, e1) => write!(f, "({} + {})", e0, e1),
-            Expr::Mul(e0, e1) => write!(f, "{} * {}", e0, e1),
-            Expr::Div(e0, e1) => write!(f, "{} / {}", e0, e1),
-            Expr::Mod(e0, e1) => write!(f, " ({} % {})", e0, e1),
-            Expr::Eq(e0, e1) => write!(f, " ({} == {} ? 1 : 0)", e0, e1),
+            Expr::Add(e0, e1) => write!(f, "({e0} + {e1})"),
+            Expr::Mul(e0, e1) => write!(f, "{e0} * {e1}"),
+            Expr::Div(e0, e1) => write!(f, "{e0} / {e1}"),
+            Expr::Mod(e0, e1) => write!(f, "({e0} % {e1})"),
+            Expr::Eq(e0, e1, trueval, falseval) => {
+                write!(f, " ({e0} == {e1} ? {trueval} : {falseval})")
+            }
             Expr::InputDigit(e0) => write!(f, "$I{}", e0),
-            Expr::Neq(e0, e1) => write!(f, " ({} != {} ? 1 : 0)", e0, e1),
         }?;
-        /*        match self.expr {
+        match self.expr {
             Expr::Const(_) => Ok(()),
-            Expr::Eq(_, _) => Ok(()),
-            Expr::Neq(_, _) => Ok(()),
             _ => {
                 write!(f, "{}", self.range.get())
             }
         }?;
-        */
+
         Ok(())
     }
 }
